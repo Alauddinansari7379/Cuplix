@@ -55,7 +55,7 @@ class _LoginPageState extends State<LoginPage> {
     );
     if (picked != null) {
       _dobController.text =
-      "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+          "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
     }
   }
 
@@ -73,9 +73,9 @@ class _LoginPageState extends State<LoginPage> {
 
   void _signIn() {
     // For now, show a demo snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Signed in successfully!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Signed in successfully!')));
 
     // Navigate to the Dashboard page
     Navigator.pushReplacement(
@@ -83,7 +83,6 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(builder: (context) => const Dashboard()),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -120,17 +119,22 @@ class _LoginPageState extends State<LoginPage> {
                   'lib/assets/logo.jpg',
                   height: 60,
                   width: 60,
-                  errorBuilder: (c, e, s) =>
-                  const Icon(Icons.favorite, size: 60, color: Colors.purple),
+                  errorBuilder:
+                      (c, e, s) => const Icon(
+                        Icons.favorite,
+                        size: 60,
+                        color: Colors.purple,
+                      ),
                 ),
 
                 const SizedBox(height: 12),
 
                 // Gradient title
                 ShaderMask(
-                  shaderCallback: (bounds) => gradient.createShader(
-                    Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                  ),
+                  shaderCallback:
+                      (bounds) => gradient.createShader(
+                        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                      ),
                   child: const Text(
                     'Welcome to Cuplix.AI',
                     textAlign: TextAlign.center,
@@ -170,17 +174,19 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                                  isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSignIn
-                                  ? [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 5,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                                  : [],
+                              boxShadow:
+                                  isSignIn
+                                      ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                      : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
@@ -188,7 +194,7 @@ class _LoginPageState extends State<LoginPage> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 color:
-                                isSignIn ? Colors.black : Colors.grey[600],
+                                    isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -205,17 +211,19 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: !isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                                  !isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: !isSignIn
-                                  ? [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 5,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                                  : [],
+                              boxShadow:
+                                  !isSignIn
+                                      ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                      : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
@@ -223,7 +231,7 @@ class _LoginPageState extends State<LoginPage> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 color:
-                                !isSignIn ? Colors.black : Colors.grey[600],
+                                    !isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -238,51 +246,14 @@ class _LoginPageState extends State<LoginPage> {
                 AnimatedCrossFade(
                   firstChild: _buildSignInForm(gradient),
                   secondChild: _buildSignUpForm(gradient),
-                  crossFadeState: isSignIn
-                      ? CrossFadeState.showFirst
-                      : CrossFadeState.showSecond,
+                  crossFadeState:
+                      isSignIn
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
                   duration: const Duration(milliseconds: 250),
                 ),
 
                 const SizedBox(height: 12),
-
-                Align(
-                  alignment: Alignment.center,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      foregroundColor: Colors.grey[700],
-                    ),
-                    onPressed: () {},
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '← ',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Back to home',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -360,9 +331,7 @@ class _LoginPageState extends State<LoginPage> {
           decoration: InputDecoration(
             hintText: 'you@example.com',
             labelText: 'Email',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
 
@@ -373,9 +342,7 @@ class _LoginPageState extends State<LoginPage> {
           obscureText: true,
           decoration: InputDecoration(
             labelText: 'Password',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
 
@@ -494,8 +461,10 @@ class _LoginPageState extends State<LoginPage> {
                   hintText: 'you@example.com',
                   filled: true,
                   fillColor: const Color(0xFFF8F6F8),
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -509,8 +478,10 @@ class _LoginPageState extends State<LoginPage> {
               icon: const Icon(Icons.mail_outline),
               label: const Text('Verify'),
               style: OutlinedButton.styleFrom(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -536,8 +507,10 @@ class _LoginPageState extends State<LoginPage> {
             hintText: '••••••••',
             filled: true,
             fillColor: const Color(0xFFF8F6F8),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -552,8 +525,10 @@ class _LoginPageState extends State<LoginPage> {
 
         const SizedBox(height: 18),
 
-        const Text('Mobile Number (Optional)',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text(
+          'Mobile Number (Optional)',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _mobileController,
@@ -562,8 +537,10 @@ class _LoginPageState extends State<LoginPage> {
             hintText: '123-456-7890',
             filled: true,
             fillColor: const Color(0xFFF8F6F8),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -578,8 +555,10 @@ class _LoginPageState extends State<LoginPage> {
 
         const SizedBox(height: 18),
 
-        const Text('Date of Birth (Optional)',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text(
+          'Date of Birth (Optional)',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _dobController,
@@ -590,8 +569,10 @@ class _LoginPageState extends State<LoginPage> {
             suffixIcon: const Icon(Icons.calendar_today),
             filled: true,
             fillColor: const Color(0xFFF8F6F8),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,

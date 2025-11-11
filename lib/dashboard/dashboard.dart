@@ -1,3 +1,6 @@
+import 'package:cuplix/dashboard/JournalScreen.dart';
+import 'package:cuplix/dashboard/MoreScreen.dart';
+import 'package:cuplix/dashboard/ProfileScreen.dart';
 import 'package:flutter/material.dart';
 
 import 'ChatScreen.dart';
@@ -15,12 +18,15 @@ class _DashboardState extends State<Dashboard> {
   // simple content for tabs (ChatScreen is used in-place)
   final List<Widget> _pages = <Widget>[
     const _DashboardContent(),
-    const ChatScreen(partnerName: 'Partner', partnerInitial: 'P', isConnected: false),
-    const Center(child: Text('Journal', style: TextStyle(fontSize: 20))),
-    const Center(child: Text('Profile', style: TextStyle(fontSize: 20))),
-    const Center(child: Text('More', style: TextStyle(fontSize: 20))),
+    const ChatScreen(
+      partnerName: 'Partner',
+      partnerInitial: 'P',
+      isConnected: false,
+    ),
+    const JournalScreen(), // 👈 Journal screen added
+    const ProfileScreen(), // 👈 ProfileScreen screen added
+    const MoreScreen(), // 👈 MoreScreen screen added
   ];
-
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +52,15 @@ class _DashboardState extends State<Dashboard> {
       unselectedItemColor: Colors.grey[600],
       showUnselectedLabels: true,
       type: BottomNavigationBarType.fixed,
-      items: items
-          .map((e) => BottomNavigationBarItem(icon: Icon(e.icon), label: e.label))
-          .toList(),
+      items:
+          items
+              .map(
+                (e) =>
+                    BottomNavigationBarItem(icon: Icon(e.icon), label: e.label),
+              )
+              .toList(),
     );
   }
-
 }
 
 class _NavItem {
@@ -258,33 +267,56 @@ class _DashboardContent extends StatelessWidget {
             const SizedBox(height: 18),
 
             // ---------- Metrics grid (2 columns) - using Wrap to avoid fixed height ----------
-            Builder(builder: (context) {
-              // compute item width based on available width and spacing
-              final screenWidth = MediaQuery.of(context).size.width;
-              // We used horizontal padding 18 on the parent SingleChildScrollView
-              const horizontalPadding = 18.0 * 2; // left + right
-              const spacing = 12.0;
-              final available = screenWidth - horizontalPadding - spacing;
-              final itemWidth = available / 2;
+            Builder(
+              builder: (context) {
+                // compute item width based on available width and spacing
+                final screenWidth = MediaQuery.of(context).size.width;
+                // We used horizontal padding 18 on the parent SingleChildScrollView
+                const horizontalPadding = 18.0 * 2; // left + right
+                const spacing = 12.0;
+                final available = screenWidth - horizontalPadding - spacing;
+                final itemWidth = available / 2;
 
-              final metricItems = const [
-                _MetricCard(title: 'Spark Index', value: '92', badgeColor: Color(0xFFF5A623), badgeIcon: Icons.star),
-                _MetricCard(title: 'Days Together', value: '247', badgeColor: Color(0xFF4FC3F7), badgeIcon: Icons.calendar_today),
-                _MetricCard(title: 'Love Points', value: '1,240', badgeColor: Color(0xFFCE8AF0), badgeIcon: Icons.emoji_events),
-                _MetricCard(title: 'Compatibility', value: '84%', badgeColor: Color(0xFFFB7B9A), badgeIcon: Icons.favorite),
-              ];
+                final metricItems = const [
+                  _MetricCard(
+                    title: 'Spark Index',
+                    value: '92',
+                    badgeColor: Color(0xFFF5A623),
+                    badgeIcon: Icons.star,
+                  ),
+                  _MetricCard(
+                    title: 'Days Together',
+                    value: '247',
+                    badgeColor: Color(0xFF4FC3F7),
+                    badgeIcon: Icons.calendar_today,
+                  ),
+                  _MetricCard(
+                    title: 'Love Points',
+                    value: '1,240',
+                    badgeColor: Color(0xFFCE8AF0),
+                    badgeIcon: Icons.emoji_events,
+                  ),
+                  _MetricCard(
+                    title: 'Compatibility',
+                    value: '84%',
+                    badgeColor: Color(0xFFFB7B9A),
+                    badgeIcon: Icons.favorite,
+                  ),
+                ];
 
-              return Wrap(
-                spacing: spacing,
-                runSpacing: spacing,
-                children: metricItems.map((w) {
-                  return SizedBox(width: itemWidth, child: w);
-                }).toList(),
-              );
-            }),
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children:
+                      metricItems.map((w) {
+                        return SizedBox(width: itemWidth, child: w);
+                      }).toList(),
+                );
+              },
+            ),
             const SizedBox(height: 18),
 
-// Weekly Happiness Trend chart card (placeholder)
+            // Weekly Happiness Trend chart card (placeholder)
             _roundedCard(
               child: SizedBox(
                 height: 180,
@@ -293,7 +325,10 @@ class _DashboardContent extends StatelessWidget {
                   children: [
                     const Text(
                       'Weekly Happiness Trend',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     // placeholder chart area
@@ -324,7 +359,7 @@ class _DashboardContent extends StatelessWidget {
                         Text('S', style: TextStyle(color: Color(0xFF9A8EA0))),
                         Text('S', style: TextStyle(color: Color(0xFF9A8EA0))),
                       ],
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -332,7 +367,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-// Compatibility Over Time chart card (placeholder)
+            // Compatibility Over Time chart card (placeholder)
             _roundedCard(
               child: SizedBox(
                 height: 180,
@@ -341,7 +376,10 @@ class _DashboardContent extends StatelessWidget {
                   children: [
                     const Text(
                       'Compatibility Over Time',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
@@ -370,7 +408,7 @@ class _DashboardContent extends StatelessWidget {
                         Text('S', style: TextStyle(color: Color(0xFF9A8EA0))),
                         Text('S', style: TextStyle(color: Color(0xFF9A8EA0))),
                       ],
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -378,7 +416,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-// Relationship Blueprint card with progress rows + insights
+            // Relationship Blueprint card with progress rows + insights
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -406,12 +444,18 @@ class _DashboardContent extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
-                            Text('Relationship Blueprint',
-                                style:
-                                TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(
+                              'Relationship Blueprint',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             SizedBox(height: 4),
-                            Text('Your personalized compatibility map',
-                                style: TextStyle(color: Colors.grey)),
+                            Text(
+                              'Your personalized compatibility map',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                           ],
                         ),
                       ),
@@ -457,7 +501,8 @@ class _DashboardContent extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F0F7), // very pale purple background
+                      color: const Color(0xFFF7F0F7),
+                      // very pale purple background
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -473,11 +518,8 @@ class _DashboardContent extends StatelessWidget {
                         SizedBox(height: 8),
                         Text(
                           'Your strongest area is Shared Values (92%). Focus on improving Conflict '
-                              'Resolution through active listening techniques.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            height: 1.4,
-                          ),
+                          'Resolution through active listening techniques.',
+                          style: TextStyle(color: Colors.grey, height: 1.4),
                         ),
                       ],
                     ),
@@ -487,7 +529,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Smart Notifications header
+            // Smart Notifications header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -499,18 +541,26 @@ class _DashboardContent extends StatelessWidget {
                   onPressed: () {},
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     side: BorderSide(color: Colors.grey.shade200),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
-                  child: const Text('Settings', style: TextStyle(color: Colors.black87)),
-                )
+                  child: const Text(
+                    'Settings',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                ),
               ],
             ),
 
             const SizedBox(height: 12),
 
-// Notification cards list
+            // Notification cards list
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -520,7 +570,8 @@ class _DashboardContent extends StatelessWidget {
                     iconColorStart: Color(0xFFEB9AA6),
                     iconColorEnd: Color(0xFFF7C7C9),
                     icon: Icons.favorite_border,
-                    title: "It's been 2 days since you said something kind — try now?",
+                    title:
+                        "It's been 2 days since you said something kind — try now?",
                     timeAgo: '2 hours ago',
                     primaryLabel: 'Send appreciation',
                     bgColor: Color(0xFFFFF3F4),
@@ -530,7 +581,8 @@ class _DashboardContent extends StatelessWidget {
                     iconColorStart: Color(0xFFB9D9FF),
                     iconColorEnd: Color(0xFFDDEEFF),
                     icon: Icons.chat_bubble_outline,
-                    title: "Your partner had a tough workday — maybe send a message.",
+                    title:
+                        "Your partner had a tough workday — maybe send a message.",
                     timeAgo: '4 hours ago',
                     primaryLabel: 'Check in',
                     bgColor: Color(0xFFF3F8FF),
@@ -540,7 +592,8 @@ class _DashboardContent extends StatelessWidget {
                     iconColorStart: Color(0xFFF9E9C6),
                     iconColorEnd: Color(0xFFFBF0D6),
                     icon: Icons.access_time,
-                    title: "You both haven't interacted much today — small gesture time.",
+                    title:
+                        "You both haven't interacted much today — small gesture time.",
                     timeAgo: '6 hours ago',
                     primaryLabel: 'Start conversation',
                     bgColor: Color(0xFFFFFBF2),
@@ -550,7 +603,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Unspoken Needs Decoder
+            // Unspoken Needs Decoder
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -569,7 +622,10 @@ class _DashboardContent extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Center(
-                          child: Icon(Icons.auto_mode_outlined, color: Colors.white),
+                          child: Icon(
+                            Icons.auto_mode_outlined,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -577,12 +633,18 @@ class _DashboardContent extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
-                            Text('Unspoken Needs Decoder',
-                                style:
-                                TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(
+                              'Unspoken Needs Decoder',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             SizedBox(height: 4),
-                            Text('AI insights for better understanding',
-                                style: TextStyle(color: Colors.grey)),
+                            Text(
+                              'AI insights for better understanding',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                           ],
                         ),
                       ),
@@ -594,7 +656,7 @@ class _DashboardContent extends StatelessWidget {
                   const _UnspokenCard(
                     icon: Icons.favorite_border,
                     title:
-                    "Today, your partner would appreciate being noticed for his efforts.",
+                        "Today, your partner would appreciate being noticed for his efforts.",
                     actionLabel: "Send a text acknowledging their hard work",
                     bgColor: Color(0xFFFFF3F4),
                   ),
@@ -603,8 +665,10 @@ class _DashboardContent extends StatelessWidget {
 
                   const _UnspokenCard(
                     icon: Icons.favorite,
-                    title: "You may be feeling overwhelmed with responsibilities lately.",
-                    actionLabel: "Ask your partner for support with daily tasks",
+                    title:
+                        "You may be feeling overwhelmed with responsibilities lately.",
+                    actionLabel:
+                        "Ask your partner for support with daily tasks",
                     bgColor: Color(0xFFF6F0FF),
                   ),
                 ],
@@ -612,7 +676,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Communication & AI header
+            // Communication & AI header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -630,20 +694,25 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Features list
+            // Features list
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)],
+                    ),
                     icon: Icons.chat_bubble_outline,
                     title: 'AI Chat',
-                    subtitle: 'Get advice and guidance through text conversations',
+                    subtitle:
+                        'Get advice and guidance through text conversations',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFAF57DB), Color(0xFFE46791)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFAF57DB), Color(0xFFE46791)],
+                    ),
                     icon: Icons.mic,
                     title: 'Voice AI',
                     subtitle: 'Talk to your AI relationship therapist anytime',
@@ -651,7 +720,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)],
+                    ),
                     icon: Icons.forum_outlined,
                     title: 'Partner Chat',
                     subtitle: 'Secure, AI-enhanced messaging with your partner',
@@ -659,18 +730,24 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF8E6DF5), Color(0xFFEA7FA6)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF8E6DF5), Color(0xFFEA7FA6)],
+                    ),
                     icon: Icons.auto_awesome,
                     title: 'AI Agent',
-                    subtitle: 'Command your AI assistant to manage app features',
+                    subtitle:
+                        'Command your AI assistant to manage app features',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF5B24A), Color(0xFFF3983E)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF5B24A), Color(0xFFF3983E)],
+                    ),
                     icon: Icons.smart_toy,
                     title: 'Mirror Mode',
-                    subtitle: "Practice conversations with your partner's AI twin",
+                    subtitle:
+                        "Practice conversations with your partner's AI twin",
                     onTap: null,
                   ),
                 ],
@@ -678,7 +755,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Memories & Care header
+            // Memories & Care header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -696,12 +773,14 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Memories & Care features list (uses same _roundedCard style)
+            // Memories & Care features list (uses same _roundedCard style)
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)],
+                    ),
                     icon: Icons.book_outlined,
                     title: 'Journal',
                     subtitle: 'Capture memories and track emotional trends',
@@ -711,17 +790,22 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF47B9A), Color(0xFFEA5E82)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF47B9A), Color(0xFFEA5E82)],
+                    ),
                     icon: Icons.person_add_alt_1,
                     title: 'Invite Partner',
-                    subtitle: 'Send a personal invite so your partner can join you',
+                    subtitle:
+                        'Send a personal invite so your partner can join you',
                     onTap: () {
                       // invite flow
                     },
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFEE5A5A)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFFF6B6B), Color(0xFFEE5A5A)],
+                    ),
                     icon: Icons.favorite,
                     title: 'Intimacy Builder',
                     subtitle: 'Custom suggestions to maintain emotional spark',
@@ -731,7 +815,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF8E6DF5), Color(0xFFE46791)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF8E6DF5), Color(0xFFE46791)],
+                    ),
                     icon: Icons.health_and_safety,
                     title: 'Therapist Mode',
                     subtitle: 'Conflict analysis with improvement suggestions',
@@ -744,7 +830,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Planning & Adventures header
+            // Planning & Adventures header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -762,12 +848,14 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Planning & Adventures tiles (grouped in a single card)
+            // Planning & Adventures tiles (grouped in a single card)
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF5B24A), Color(0xFFF3983E)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF5B24A), Color(0xFFF3983E)],
+                    ),
                     icon: Icons.calendar_today,
                     title: 'Couple Calendar',
                     subtitle: 'AI-managed scheduling for relationship events',
@@ -777,7 +865,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFEE6A3D), Color(0xFFEF4A2A)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFEE6A3D), Color(0xFFEF4A2A)],
+                    ),
                     icon: Icons.track_changes,
                     title: 'Shared Goals',
                     subtitle: 'Track goals and dream experiences in one place',
@@ -787,7 +877,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF3C451), Color(0xFFF1B33C)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF3C451), Color(0xFFF1B33C)],
+                    ),
                     icon: Icons.show_chart,
                     title: 'Compatibility',
                     subtitle: 'Deep emotional interaction visualization',
@@ -797,7 +889,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF47B9A), Color(0xFFEE5E82)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF47B9A), Color(0xFFEE5E82)],
+                    ),
                     icon: Icons.music_note,
                     title: 'Mood Music',
                     subtitle: 'Personalized playlists for emotional regulation',
@@ -810,7 +904,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Health & Wellness header
+            // Health & Wellness header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -828,12 +922,14 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Health & Wellness tiles (grouped in one card)
+            // Health & Wellness tiles (grouped in one card)
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFFB7B9A), Color(0xFFEA6A96)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFFB7B9A), Color(0xFFEA6A96)],
+                    ),
                     icon: Icons.bloodtype,
                     title: 'Cycle Tracker',
                     subtitle: 'Hormonal mood insights with gentle reminders',
@@ -843,17 +939,22 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF7AA1FF), Color(0xFF6B8CFF)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF7AA1FF), Color(0xFF6B8CFF)],
+                    ),
                     icon: Icons.nightlight_round,
                     title: 'Sleep & Stress',
-                    subtitle: 'Biological harmony tracking with wellness insights',
+                    subtitle:
+                        'Biological harmony tracking with wellness insights',
                     onTap: () {
                       // navigate to Sleep & Stress
                     },
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF56D7C6), Color(0xFF2FBEB0)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF56D7C6), Color(0xFF2FBEB0)],
+                    ),
                     icon: Icons.monitor_heart,
                     title: 'Sensor Tracking',
                     subtitle: 'Real-time emotional and conflict detection',
@@ -866,7 +967,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Rewards & Marketplace header
+            // Rewards & Marketplace header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -884,12 +985,14 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Rewards & Marketplace tiles (grouped together in one rounded card)
+            // Rewards & Marketplace tiles (grouped together in one rounded card)
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF47B9A), Color(0xFFEB5E7C)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF47B9A), Color(0xFFEB5E7C)],
+                    ),
                     icon: Icons.card_giftcard,
                     title: 'Gift Marketplace',
                     subtitle: 'AI-recommended gifts and experiences',
@@ -899,17 +1002,22 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)],
+                    ),
                     icon: Icons.emoji_events,
                     title: 'Rewards',
-                    subtitle: 'Earn love points and badges for positive actions',
+                    subtitle:
+                        'Earn love points and badges for positive actions',
                     onTap: () {
                       // navigate to Rewards section
                     },
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFFF3C451), Color(0xFFEFAE39)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFFF3C451), Color(0xFFEFAE39)],
+                    ),
                     icon: Icons.workspace_premium,
                     title: 'Subscription',
                     subtitle: 'Manage Cuplix+ perks and billing details',
@@ -922,7 +1030,7 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-// Account & Privacy header
+            // Account & Privacy header
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: const [
@@ -940,12 +1048,14 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-// Account & Privacy tiles
+            // Account & Privacy tiles
             _roundedCard(
               child: Column(
                 children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF7AA1FF), Color(0xFF6C8CFF)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF7AA1FF), Color(0xFF6C8CFF)],
+                    ),
                     icon: Icons.person_outline,
                     title: 'Profile',
                     subtitle: 'View your connection stats and badges',
@@ -955,7 +1065,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF6C7684), Color(0xFF9BA3AE)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF6C7684), Color(0xFF9BA3AE)],
+                    ),
                     icon: Icons.edit_outlined,
                     title: 'Edit Profile',
                     subtitle: 'Update bios, avatars, and personal info',
@@ -965,7 +1077,9 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(colors: [Color(0xFF5E5E6B), Color(0xFF3A3A44)]),
+                    iconGradient: LinearGradient(
+                      colors: [Color(0xFF5E5E6B), Color(0xFF3A3A44)],
+                    ),
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy Center',
                     subtitle: 'Review data controls and permissions',
@@ -979,7 +1093,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-// Today's Insight Card
+            // Today's Insight Card
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -1003,7 +1117,10 @@ class _DashboardContent extends StatelessWidget {
                             end: Alignment.bottomRight,
                           ),
                         ),
-                        child: const Icon(Icons.auto_awesome, color: Colors.white),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Text(
@@ -1019,8 +1136,8 @@ class _DashboardContent extends StatelessWidget {
                   const SizedBox(height: 12),
                   const Text(
                     "Your partner has been showing extra effort this week. "
-                        "Consider expressing appreciation – a simple acknowledgment can "
-                        "strengthen your bond by 15%.",
+                    "Consider expressing appreciation – a simple acknowledgment can "
+                    "strengthen your bond by 15%.",
                     style: TextStyle(color: Color(0xFF7C748A), height: 1.4),
                   ),
                   const SizedBox(height: 14),
@@ -1030,7 +1147,10 @@ class _DashboardContent extends StatelessWidget {
                       onPressed: () {},
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFEEE6F0)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
@@ -1063,7 +1183,6 @@ class _DashboardContent extends StatelessWidget {
             const SizedBox(height: 18),
 
             const SizedBox(height: 18),
-
 
             const SizedBox(height: 24),
 
@@ -1113,16 +1232,22 @@ class _MetricCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFEEE6F0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6),
+        ],
       ),
       child: Stack(
         children: [
           // content column (shrink to content)
           Column(
-            mainAxisSize: MainAxisSize.min, // <-- prevents the Column from forcing height
+            mainAxisSize: MainAxisSize.min,
+            // <-- prevents the Column from forcing height
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+              Text(
+                title,
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ),
               const SizedBox(height: 12),
               // FittedBox prevents the value text from forcing a big height
               FittedBox(
@@ -1168,6 +1293,7 @@ class _MetricCard extends StatelessWidget {
     );
   }
 }
+
 // Small helper widget for a progress row used in Relationship Blueprint
 class _ProgressRow extends StatelessWidget {
   final IconData icon;
@@ -1212,13 +1338,21 @@ class _ProgressRow extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(label,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 16)),
-                  ),
-                  Text('${(percent * 100).round()}%',
+                    child: Text(
+                      label,
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${(percent * 100).round()}%',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1227,18 +1361,13 @@ class _ProgressRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 child: Stack(
                   children: [
-                    Container(
-                      height: 12,
-                      color: const Color(0xFFF3EAF6),
-                    ),
+                    Container(height: 12, color: const Color(0xFFF3EAF6)),
                     // colored filled portion
                     FractionallySizedBox(
                       widthFactor: percent,
                       child: Container(
                         height: 12,
-                        decoration: const BoxDecoration(
-                          gradient: gradient,
-                        ),
+                        decoration: const BoxDecoration(gradient: gradient),
                       ),
                     ),
                   ],
@@ -1251,6 +1380,7 @@ class _ProgressRow extends StatelessWidget {
     );
   }
 }
+
 class _NotificationCard extends StatelessWidget {
   final Color iconColorStart;
   final Color iconColorEnd;
@@ -1302,13 +1432,19 @@ class _NotificationCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(timeAgo, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          Text(
+            timeAgo,
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -1318,15 +1454,26 @@ class _NotificationCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   side: BorderSide(color: Colors.grey.shade200),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                 ),
-                child: Text(primaryLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(
+                  primaryLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
               const SizedBox(width: 16),
               TextButton(
                 onPressed: () {},
-                child: const Text('Dismiss', style: TextStyle(color: Colors.black54)),
+                child: const Text(
+                  'Dismiss',
+                  style: TextStyle(color: Colors.black54),
+                ),
               ),
             ],
           ),
@@ -1335,6 +1482,7 @@ class _NotificationCard extends StatelessWidget {
     );
   }
 }
+
 class _UnspokenCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1379,7 +1527,10 @@ class _UnspokenCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1391,10 +1542,15 @@ class _UnspokenCard extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               backgroundColor: Colors.white,
               side: BorderSide(color: Colors.grey.shade200),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
-            child: Text(actionLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              actionLabel,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -1406,6 +1562,7 @@ class _UnspokenCard extends StatelessWidget {
     );
   }
 }
+
 class _FeatureTile extends StatelessWidget {
   final LinearGradient iconGradient;
   final IconData icon;
@@ -1449,9 +1606,18 @@ class _FeatureTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(color: Color(0xFF9A8EA0))),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Color(0xFF9A8EA0)),
+                  ),
                 ],
               ),
             ),
@@ -1462,7 +1628,3 @@ class _FeatureTile extends StatelessWidget {
     );
   }
 }
-
-
-
-

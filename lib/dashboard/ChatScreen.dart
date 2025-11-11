@@ -28,16 +28,16 @@ class ChatScreen extends StatelessWidget {
         titleSpacing: 0,
         title: Row(
           children: [
-            // IconButton(
-            //   icon: const Icon(Icons.arrow_back, color: Color(0xFF2C2139)),
-            //   onPressed: () => Navigator.maybePop(context),
-            // ),
+            const SizedBox(width: 16), // 👈 Adds margin from start (left side)
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade200,
               child: Text(
                 partnerInitial,
-                style: const TextStyle(color: Color(0xFF2C2139), fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Color(0xFF2C2139),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -45,8 +45,14 @@ class ChatScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(partnerName,
-                      style: const TextStyle(color: primaryText, fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    partnerName,
+                    style: const TextStyle(
+                      color: Color(0xFF2C2139),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -59,8 +65,13 @@ class ChatScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(isConnected ? 'Online' : 'Offline',
-                          style: const TextStyle(color: mutedText, fontSize: 13)),
+                      Text(
+                        isConnected ? 'Online' : 'Offline',
+                        style: const TextStyle(
+                          color: Color(0xFF9A8EA0),
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -103,7 +114,10 @@ class ChatScreen extends StatelessWidget {
                 border: Border(top: BorderSide(color: cardBorder)),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 14,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -125,12 +139,20 @@ class ChatScreen extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.white,
                           side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
                         ),
                         child: const Text(
                           'Manage Connections',
-                          style: TextStyle(color: Color(0xFF2C2139), fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            color: Color(0xFF2C2139),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
