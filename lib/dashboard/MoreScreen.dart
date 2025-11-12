@@ -1,11 +1,16 @@
+import 'package:cuplix/more/AffectionBuilderScreen.dart';
+import 'package:cuplix/more/AiAgentScreen.dart';
+import 'package:cuplix/more/CoupleJournalScreen.dart';
+import 'package:cuplix/more/MirrorModeScreen.dart';
 import 'package:flutter/material.dart';
+
+import '../more/AIChatScreen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final mutedText = const Color(0xFF9A8EA0);
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -41,11 +46,55 @@ class MoreScreen extends StatelessWidget {
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.95,
-                children: const [
-                  _FeatureTile(icon: Icons.chat_bubble_outline, title: 'AI Chat'),
-                  _FeatureTile(icon: Icons.mic_none_rounded, title: 'Voice AI'),
-                  _FeatureTile(icon: Icons.auto_awesome_outlined, title: 'AI Agent'),
-                  _FeatureTile(icon: Icons.star_outline, title: 'Mirror Mode'),
+                children: [
+                  _FeatureTile(
+                    icon: Icons.chat_bubble_outline,
+                    title: 'AI Chat',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiChatScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _FeatureTile(
+                    icon: Icons.mic_none_rounded,
+                    title: 'Voice AI',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiAgentScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _FeatureTile(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'AI Agent',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiAgentScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _FeatureTile(
+                    icon: Icons.star_outline,
+                    title: 'Mirror Mode',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MirrorModeScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
 
@@ -61,14 +110,51 @@ class MoreScreen extends StatelessWidget {
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.05,
-                children: const [
-                  _FeatureTile(icon: Icons.chat_bubble, title: 'Partner Chat'),
-                  _FeatureTile(icon: Icons.menu_book_outlined, title: 'Journal'),
-                  _FeatureTile(icon: Icons.favorite_border, title: 'Affection'),
-                  _FeatureTile(icon: Icons.headset_mic_outlined, title: 'Therapist'),
-                  _FeatureTile(icon: Icons.card_giftcard, title: 'Marketplace'),
-                  _FeatureTile(icon: Icons.emoji_events_outlined, title: 'Rewards'),
-                  _FeatureTile(icon: Icons.person_add_alt_1_outlined, title: 'Invite Partner'),
+                children: [
+                  const _FeatureTile(
+                    icon: Icons.chat_bubble,
+                    title: 'Partner Chat',
+                  ),
+                  _FeatureTile(
+                    icon: Icons.menu_book_outlined,
+                    title: 'Journal',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CoupleJournalScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _FeatureTile(
+                    icon: Icons.favorite_border,
+                    title: 'Affection',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AffectionBuilderScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const _FeatureTile(
+                    icon: Icons.headset_mic_outlined,
+                    title: 'Therapist',
+                  ),
+                  const _FeatureTile(
+                    icon: Icons.card_giftcard,
+                    title: 'Marketplace',
+                  ),
+                  const _FeatureTile(
+                    icon: Icons.emoji_events_outlined,
+                    title: 'Rewards',
+                  ),
+                  const _FeatureTile(
+                    icon: Icons.person_add_alt_1_outlined,
+                    title: 'Invite Partner',
+                  ),
                 ],
               ),
 
@@ -86,7 +172,10 @@ class MoreScreen extends StatelessWidget {
                 childAspectRatio: 1.05,
                 children: const [
                   _FeatureTile(icon: Icons.calendar_today, title: 'Calendar'),
-                  _FeatureTile(icon: Icons.monitor_heart_outlined, title: 'Shared Goals'),
+                  _FeatureTile(
+                    icon: Icons.monitor_heart_outlined,
+                    title: 'Shared Goals',
+                  ),
                   _FeatureTile(icon: Icons.bar_chart, title: 'Compatibility'),
                   _FeatureTile(icon: Icons.music_note, title: 'Mood Music'),
                 ],
@@ -106,8 +195,14 @@ class MoreScreen extends StatelessWidget {
                 childAspectRatio: 1.05,
                 children: const [
                   _FeatureTile(icon: Icons.water_drop_outlined, title: 'Cycle'),
-                  _FeatureTile(icon: Icons.nights_stay_outlined, title: 'Sleep'),
-                  _FeatureTile(icon: Icons.monitor_heart_outlined, title: 'Sensors'),
+                  _FeatureTile(
+                    icon: Icons.nights_stay_outlined,
+                    title: 'Sleep',
+                  ),
+                  _FeatureTile(
+                    icon: Icons.monitor_heart_outlined,
+                    title: 'Sensors',
+                  ),
                 ],
               ),
 
@@ -115,8 +210,8 @@ class MoreScreen extends StatelessWidget {
               const Divider(color: Color(0xFFEDE7F1)),
               const SizedBox(height: 20),
 
-
-              const SizedBox(height: 16 + 8), // breathing room above bottom inset
+              const SizedBox(height: 16 + 8),
+              // breathing room above bottom inset
             ],
           ),
         ),
@@ -128,6 +223,7 @@ class MoreScreen extends StatelessWidget {
 /// small reusable section title
 class SectionTitle extends StatelessWidget {
   final String title;
+
   const SectionTitle({required this.title, super.key});
 
   @override
@@ -147,15 +243,14 @@ class SectionTitle extends StatelessWidget {
 class _FeatureTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final VoidCallback? onTap;
 
-  const _FeatureTile({required this.icon, required this.title});
+  const _FeatureTile({required this.icon, required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        // TODO: navigate to the feature specific screen
-      },
+      onTap: onTap, // Use the provided onTap callback
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
