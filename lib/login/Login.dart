@@ -1,7 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../apiInterface/api_helper.dart';
+import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
+
+// adjust these imports to your project package
 
 void main() {
   runApp(const Login());
@@ -36,12 +42,20 @@ class _LoginPageState extends State<LoginPage> {
   final _mobileController = TextEditingController();
   final _dobController = TextEditingController();
 
+  // controllers for sign-in (separate so switching forms keeps values)
+  final _signInEmailController = TextEditingController();
+  final _signInPasswordController = TextEditingController();
+
+  bool _loading = false; // used for both flows, you can split if needed
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _mobileController.dispose();
     _dobController.dispose();
+    _signInEmailController.dispose();
+    _signInPasswordController.dispose();
     super.dispose();
   }
 
@@ -55,34 +69,164 @@ class _LoginPageState extends State<LoginPage> {
     );
     if (picked != null) {
       _dobController.text =
-          "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+      "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
     }
   }
 
-  void _verifyEmail() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verification code sent (demo)')),
+  // Helper: convert dd/mm/yyyy or dd-mm-yyyy to yyyy-MM-dd (returns null if empty/invalid)
+  String? _formatDobForApi(String? dobText) {
+    if (dobText == null || dobText.trim().isEmpty) return null;
+    final cleaned = dobText.replaceAll('-', '/').trim();
+    final parts = cleaned.split('/');
+    if (parts.length != 3) return null;
+    final dd = parts[0].padLeft(2, '0');
+    final mm = parts[1].padLeft(2, '0');
+    var yy = parts[2];
+    if (yy.length == 2) {
+      final yearInt = int.tryParse(yy) ?? 0;
+      final century = yearInt > 30 ? '19' : '20';
+      yy = '$century$yy';
+    }
+    return '${yy.padLeft(4, '0')}-$mm-$dd';
+  }
+
+  // Helper: normalize mobile to +<digits>
+  String? _normalizeMobile(String? mobile) {
+    if (mobile == null) return null;
+    final s = mobile.trim();
+    if (s.isEmpty) return null;
+    if (s.startsWith('+')) return s;
+    if (s.startsWith('00')) return '+${s.substring(2)}';
+    final digits = s.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return null;
+    return '+$digits';
+  }
+
+  void _showModalLoader() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
   }
 
-  void _createAccount() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Create account pressed (demo)')),
-    );
+  void _hideModalLoader() {
+    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
-  void _signIn() {
-    // For now, show a demo snackbar
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Signed in successfully!')));
+  // --------- Verify Email (endpoint) ----------
 
-    // Navigate to the Dashboard page
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const Dashboard()),
-    );
+  Future<void> _verifyEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter email first to verify')));
+      return;
+    }
+
+    _showModalLoader();
+    try {
+      final res = await ApiHelper.post(url: ApiInterface.sendOtp, body: {'email': email});
+      _hideModalLoader();
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code sent to email')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['error']?.toString() ?? 'Failed to send verification')));
+      }
+    } catch (e) {
+      _hideModalLoader();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
+    }
   }
+
+  // ---------- Create Account (Sign Up) ----------
+  Future<void> _createAccount() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final mobile = _mobileController.text.trim();
+    final dobText = _dobController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email and password are required')),
+      );
+      return;
+    }
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    final payload = <String, dynamic>{
+      'email': email,
+      'password': password,
+    };
+
+    final formattedDob = _formatDobForApi(dobText);
+    final normalizedMobile = _normalizeMobile(mobile);
+
+    if (normalizedMobile != null) payload['mobile'] = normalizedMobile;
+    if (formattedDob != null) payload['dateOfBirth'] = formattedDob;
+
+    setState(() => _loading = true);
+
+    final result = await ApiHelper.post(url: ApiInterface.register, body: payload);
+
+    setState(() => _loading = false);
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created successfully')),
+      );
+      // Optionally switch to sign-in or clear fields:
+      setState(() => isSignIn = true);
+      // clear sign-up fields if you want:
+      // _emailController.clear(); _passwordController.clear(); ...
+    } else {
+      final err = result['error'] ?? 'Registration failed';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+    }
+  }
+
+  // ---------- Sign In ----------
+  Future<void> _signIn() async {
+    final email = _signInEmailController.text.trim();
+    final password = _signInPasswordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email and password are required')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    final payload = {'email': email, 'password': password};
+    final result = await ApiHelper.post(url: ApiInterface.login, body: payload);
+
+    setState(() => _loading = false);
+
+    if (result['success'] == true) {
+      // if backend returns token/data, you can store it here (secure_storage)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in successfully!')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Dashboard()),
+      );
+    } else {
+      final err = result['error'] ?? 'Login failed';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+    }
+  }
+
+  Widget _buildLoader() => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 12),
+    child: Center(child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator())),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -119,22 +263,20 @@ class _LoginPageState extends State<LoginPage> {
                   'lib/assets/logo.jpg',
                   height: 60,
                   width: 60,
-                  errorBuilder:
-                      (c, e, s) => const Icon(
-                        Icons.favorite,
-                        size: 60,
-                        color: Colors.purple,
-                      ),
+                  errorBuilder: (c, e, s) => const Icon(
+                    Icons.favorite,
+                    size: 60,
+                    color: Colors.purple,
+                  ),
                 ),
 
                 const SizedBox(height: 12),
 
                 // Gradient title
                 ShaderMask(
-                  shaderCallback:
-                      (bounds) => gradient.createShader(
-                        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                      ),
+                  shaderCallback: (bounds) => gradient.createShader(
+                    Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                  ),
                   child: const Text(
                     'Welcome to Cuplix.AI',
                     textAlign: TextAlign.center,
@@ -154,7 +296,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 24),
 
-                // Toggle (Sign In / Sign Up) - navigates inside same page
+                // Toggle (Sign In / Sign Up)
                 Container(
                   height: 48,
                   margin: const EdgeInsets.only(bottom: 24),
@@ -174,27 +316,24 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color:
-                                  isSignIn ? Colors.white : Colors.transparent,
+                              color: isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                                  isSignIn
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                      : [],
+                              boxShadow: isSignIn
+                                  ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                                  : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               "Sign In",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color:
-                                    isSignIn ? Colors.black : Colors.grey[600],
+                                color: isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -211,27 +350,24 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color:
-                                  !isSignIn ? Colors.white : Colors.transparent,
+                              color: !isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                                  !isSignIn
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                      : [],
+                              boxShadow: !isSignIn
+                                  ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                                  : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               "Sign Up",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color:
-                                    !isSignIn ? Colors.black : Colors.grey[600],
+                                color: !isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -246,10 +382,7 @@ class _LoginPageState extends State<LoginPage> {
                 AnimatedCrossFade(
                   firstChild: _buildSignInForm(gradient),
                   secondChild: _buildSignUpForm(gradient),
-                  crossFadeState:
-                      isSignIn
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
+                  crossFadeState: isSignIn ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                   duration: const Duration(milliseconds: 250),
                 ),
 
@@ -326,19 +459,22 @@ class _LoginPageState extends State<LoginPage> {
 
         const SizedBox(height: 16),
 
-        // Email
+        // Email (sign in)
         TextField(
+          controller: _signInEmailController,
           decoration: InputDecoration(
             hintText: 'you@example.com',
             labelText: 'Email',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
+          keyboardType: TextInputType.emailAddress,
         ),
 
         const SizedBox(height: 16),
 
-        // Password
+        // Password (sign in)
         TextField(
+          controller: _signInPasswordController,
           obscureText: true,
           decoration: InputDecoration(
             labelText: 'Password',
@@ -362,7 +498,9 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
           ),
-          child: ElevatedButton(
+          child: _loading
+              ? _buildLoader()
+              : ElevatedButton(
             onPressed: _signIn,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
@@ -386,7 +524,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ---------------- Sign Up Form (inline) ----------------
+  // ---------------- Sign Up Form ----------------
   Widget _buildSignUpForm(Gradient gradient) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -462,7 +600,7 @@ class _LoginPageState extends State<LoginPage> {
                   filled: true,
                   fillColor: const Color(0xFFF8F6F8),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
+                    horizontal: 10,
                     vertical: 16,
                   ),
                   border: OutlineInputBorder(
@@ -470,17 +608,18 @@ class _LoginPageState extends State<LoginPage> {
                     borderSide: BorderSide.none,
                   ),
                 ),
+                keyboardType: TextInputType.emailAddress,
               ),
             ),
             const SizedBox(width: 12),
             OutlinedButton.icon(
               onPressed: _verifyEmail,
               icon: const Icon(Icons.mail_outline),
-              label: const Text('Verify'),
+              label: const Text('Send OTP'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
+                  horizontal: 4,
+                  vertical: 10,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -601,7 +740,9 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
           ),
-          child: ElevatedButton(
+          child: _loading
+              ? _buildLoader()
+              : ElevatedButton(
             onPressed: _createAccount,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
