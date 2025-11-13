@@ -46,7 +46,14 @@ class _LoginPageState extends State<LoginPage> {
   final _signInEmailController = TextEditingController();
   final _signInPasswordController = TextEditingController();
 
+  // controller for otp
+  final _otpController = TextEditingController();
+
   bool _loading = false; // used for both flows, you can split if needed
+
+  // OTP / verification state
+  bool _otpSent = false;
+  bool _emailVerified = false;
 
   @override
   void dispose() {
@@ -56,6 +63,7 @@ class _LoginPageState extends State<LoginPage> {
     _dobController.dispose();
     _signInEmailController.dispose();
     _signInPasswordController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -114,27 +122,92 @@ class _LoginPageState extends State<LoginPage> {
     if (Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
-  // --------- Verify Email (endpoint) ----------
+  // --------- Verify Email (send OTP) ----------
 
   Future<void> _verifyEmail() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter email first to verify')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter email first to verify')),
+      );
       return;
     }
 
     _showModalLoader();
     try {
-      final res = await ApiHelper.post(url: ApiInterface.sendOtp, body: {'email': email});
+      final res = await ApiHelper.post(
+        url: ApiInterface.sendOtp,
+        body: {'email': email},
+      );
       _hideModalLoader();
       if (res['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code sent to email')));
+        setState(() {
+          _otpSent = true;
+          _emailVerified = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification code sent to email')),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['error']?.toString() ?? 'Failed to send verification')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              res['error']?.toString() ?? 'Failed to send verification',
+            ),
+          ),
+        );
       }
     } catch (e) {
       _hideModalLoader();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Network error: $e')));
+    }
+  }
+
+  // ---------- Verify OTP ----------
+  Future<void> _verifyOtp() async {
+    final email = _emailController.text.trim();
+    final otp = _otpController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email is required')),
+      );
+      return;
+    }
+    if (otp.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the OTP you received')),
+      );
+      return;
+    }
+
+    _showModalLoader();
+    try {
+      final res = await ApiHelper.post(
+        url: ApiInterface.verifyEmail, // ensure this exists in your ApiInterface
+        body: {'email': email, 'otp': otp},
+      );
+      _hideModalLoader();
+      if (res['success'] == true) {
+        setState(() {
+          _emailVerified = true;
+          _otpSent = false; // hide the otp input after successful verification
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email verified successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['error']?.toString() ?? 'OTP verification failed')),
+        );
+      }
+    } catch (e) {
+      _hideModalLoader();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Network error: $e')),
+      );
     }
   }
 
@@ -158,10 +231,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final payload = <String, dynamic>{
-      'email': email,
-      'password': password,
-    };
+    final payload = <String, dynamic>{'email': email, 'password': password};
 
     final formattedDob = _formatDobForApi(dobText);
     final normalizedMobile = _normalizeMobile(mobile);
@@ -169,9 +239,15 @@ class _LoginPageState extends State<LoginPage> {
     if (normalizedMobile != null) payload['mobile'] = normalizedMobile;
     if (formattedDob != null) payload['dateOfBirth'] = formattedDob;
 
+    // optionally include that email is verified
+    if (_emailVerified) payload['emailVerified'] = true;
+
     setState(() => _loading = true);
 
-    final result = await ApiHelper.post(url: ApiInterface.register, body: payload);
+    final result = await ApiHelper.post(
+      url: ApiInterface.register,
+      body: payload,
+    );
 
     setState(() => _loading = false);
 
@@ -181,11 +257,11 @@ class _LoginPageState extends State<LoginPage> {
       );
       // Optionally switch to sign-in or clear fields:
       setState(() => isSignIn = true);
-      // clear sign-up fields if you want:
-      // _emailController.clear(); _passwordController.clear(); ...
     } else {
       final err = result['error'] ?? 'Registration failed';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(err.toString())));
     }
   }
 
@@ -210,22 +286,30 @@ class _LoginPageState extends State<LoginPage> {
 
     if (result['success'] == true) {
       // if backend returns token/data, you can store it here (secure_storage)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed in successfully!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Signed in successfully!')));
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const Dashboard()),
       );
     } else {
       final err = result['error'] ?? 'Login failed';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(err.toString())));
     }
   }
 
   Widget _buildLoader() => const Padding(
     padding: EdgeInsets.symmetric(vertical: 12),
-    child: Center(child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator())),
+    child: Center(
+      child: SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(),
+      ),
+    ),
   );
 
   @override
@@ -263,7 +347,8 @@ class _LoginPageState extends State<LoginPage> {
                   'lib/assets/logo.jpg',
                   height: 60,
                   width: 60,
-                  errorBuilder: (c, e, s) => const Icon(
+                  errorBuilder:
+                      (c, e, s) => const Icon(
                     Icons.favorite,
                     size: 60,
                     color: Colors.purple,
@@ -274,7 +359,8 @@ class _LoginPageState extends State<LoginPage> {
 
                 // Gradient title
                 ShaderMask(
-                  shaderCallback: (bounds) => gradient.createShader(
+                  shaderCallback:
+                      (bounds) => gradient.createShader(
                     Rect.fromLTWH(0, 0, bounds.width, bounds.height),
                   ),
                   child: const Text(
@@ -316,9 +402,11 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                              isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSignIn
+                              boxShadow:
+                              isSignIn
                                   ? [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.05),
@@ -333,7 +421,8 @@ class _LoginPageState extends State<LoginPage> {
                               "Sign In",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: isSignIn ? Colors.black : Colors.grey[600],
+                                color:
+                                isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -350,9 +439,11 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: !isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                              !isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: !isSignIn
+                              boxShadow:
+                              !isSignIn
                                   ? [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.05),
@@ -367,7 +458,8 @@ class _LoginPageState extends State<LoginPage> {
                               "Sign Up",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: !isSignIn ? Colors.black : Colors.grey[600],
+                                color:
+                                !isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -382,7 +474,8 @@ class _LoginPageState extends State<LoginPage> {
                 AnimatedCrossFade(
                   firstChild: _buildSignInForm(gradient),
                   secondChild: _buildSignUpForm(gradient),
-                  crossFadeState: isSignIn ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                  crossFadeState:
+                  isSignIn ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                   duration: const Duration(milliseconds: 250),
                 ),
 
@@ -615,7 +708,7 @@ class _LoginPageState extends State<LoginPage> {
             OutlinedButton.icon(
               onPressed: _verifyEmail,
               icon: const Icon(Icons.mail_outline),
-              label: const Text('Send OTP'),
+              label: Text(_otpSent ? 'Resend OTP' : 'Send OTP'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 4,
@@ -635,7 +728,63 @@ class _LoginPageState extends State<LoginPage> {
           style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+
+        // Show OTP input and Verify button when OTP was sent and email not yet verified
+        if (_otpSent && !_emailVerified) ...[
+          const SizedBox(height: 12),
+          const Text('Enter OTP', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _otpController,
+                  decoration: InputDecoration(
+                    hintText: '123456',
+                    filled: true,
+                    fillColor: const Color(0xFFF8F6F8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: _verifyOtp,
+                child: const Text('Verify'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+        ],
+
+        // Show small badge if email verified
+        if (_emailVerified) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.green, size: 18),
+              SizedBox(width: 8),
+              Text('Email verified', style: TextStyle(color: Colors.green)),
+            ],
+          ),
+        ],
+
+        const SizedBox(height: 8),
 
         const Text('Password', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),

@@ -1,7 +1,10 @@
 import 'package:cuplix/more/AffectionBuilderScreen.dart';
 import 'package:cuplix/more/AiAgentScreen.dart';
+import 'package:cuplix/more/AiTherapistScreen.dart';
 import 'package:cuplix/more/CoupleJournalScreen.dart';
+import 'package:cuplix/more/GiftMarketplaceScreen.dart';
 import 'package:cuplix/more/MirrorModeScreen.dart';
+import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 
 import '../more/AIChatScreen.dart';
@@ -139,17 +142,41 @@ class MoreScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const _FeatureTile(
+                  _FeatureTile(
                     icon: Icons.headset_mic_outlined,
                     title: 'Therapist',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiTherapistScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  const _FeatureTile(
+                  _FeatureTile(
                     icon: Icons.card_giftcard,
                     title: 'Marketplace',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const GiftMarketplaceScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  const _FeatureTile(
+                  _FeatureTile(
                     icon: Icons.emoji_events_outlined,
                     title: 'Rewards',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RewardsScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const _FeatureTile(
                     icon: Icons.person_add_alt_1_outlined,
