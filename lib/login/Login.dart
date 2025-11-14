@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../apiInterface/api_helper.dart';
 import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
+import 'OnboardingRoleSelection.dart';
 
 // adjust these imports to your project package
 
@@ -218,6 +219,14 @@ class _LoginPageState extends State<LoginPage> {
     final mobile = _mobileController.text.trim();
     final dobText = _dobController.text.trim();
 
+    // Require OTP verification before allowing registration
+    if (!_emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please verify your email with the OTP before creating an account')),
+      );
+      return;
+    }
+
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Email and password are required')),
@@ -231,16 +240,17 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final payload = <String, dynamic>{'email': email, 'password': password};
+    // Build payload exactly as your backend expects: email, password, mobile, dateofbirth
+    final payload = <String, dynamic>{
+      'email': email,
+      'password': password,
+    };
 
     final formattedDob = _formatDobForApi(dobText);
     final normalizedMobile = _normalizeMobile(mobile);
 
     if (normalizedMobile != null) payload['mobile'] = normalizedMobile;
-    if (formattedDob != null) payload['dateOfBirth'] = formattedDob;
-
-    // optionally include that email is verified
-    if (_emailVerified) payload['emailVerified'] = true;
+    if (formattedDob != null) payload['dateOfBirth'] = formattedDob; // use camelCase key expected by backend
 
     setState(() => _loading = true);
 
@@ -257,6 +267,14 @@ class _LoginPageState extends State<LoginPage> {
       );
       // Optionally switch to sign-in or clear fields:
       setState(() => isSignIn = true);
+      // navigate to onboarding role selection
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OnboardingRoleSelection(userEmail: email),
+        ),
+      );
+
     } else {
       final err = result['error'] ?? 'Registration failed';
       ScaffoldMessenger.of(
