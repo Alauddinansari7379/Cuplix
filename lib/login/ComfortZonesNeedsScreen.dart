@@ -1,4 +1,4 @@
-// file: comfort_zones_needs_screen.dart
+// file: lib/login/comfort_zones_needs_screen.dart
 import 'package:cuplix/login/RelationshipGoalsScreen.dart';
 import 'package:flutter/material.dart';
 import '../dashboard/dashboard.dart'; // adjust path if needed
@@ -222,17 +222,32 @@ class _ComfortZonesNeedsScreenState extends State<ComfortZonesNeedsScreen> {
     setState(() => _loading = true);
 
     try {
-      // TODO: call your backend here (e.g. ApiHelper.post(...))
-      // For now we simulate a delay
+      // simulate saving (or call an API if you want)
       await Future.delayed(const Duration(milliseconds: 700));
-
       setState(() => _loading = false);
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Onboarding data saved.')));
 
-      // Navigate to next screen (RelationshipGoalsScreen) and pass collected payload
+      // Navigate to next screen (RelationshipGoalsScreen)
+      // Map payload fields to RelationshipGoalsScreen constructor params:
+      final dobStr = payload['dateOfBirth'] as String?;
+      int? computedAge;
+      if (dobStr != null && dobStr.isNotEmpty) {
+        try {
+          final parsed = DateTime.parse(dobStr);
+          final now = DateTime.now();
+          computedAge = now.year - parsed.year;
+          if (now.month < parsed.month ||
+              (now.month == parsed.month && now.day < parsed.day)) {
+            computedAge--;
+          }
+        } catch (_) {
+          computedAge = null;
+        }
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -241,7 +256,19 @@ class _ComfortZonesNeedsScreenState extends State<ComfortZonesNeedsScreen> {
                 role: widget.role,
                 name: widget.name,
                 email: widget.email,
-                previousAnswers: payload,
+                avatarUrl: null,
+                mobile: payload['mobile'] as String?,
+                dateOfBirth: dobStr,
+                age: computedAge,
+                religion: payload['religion'] as String?,
+                religiosityScore:
+                    payload['religiosity'] is int
+                        ? payload['religiosity'] as int
+                        : (payload['religiosity'] is double
+                            ? (payload['religiosity'] as double).round()
+                            : null),
+                placeOfBirth: payload['placeOfBirth'] as String?,
+                journeyStartDate: payload['togetherSince'] as String?,
               ),
         ),
       );

@@ -1,18 +1,46 @@
-// file: relationship_goals_screen.dart
+// file: lib/login/RelationshipGoalsScreen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+
+import '../apiInterface/api_helper.dart';
+import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
 
 class RelationshipGoalsScreen extends StatefulWidget {
+  // required basic info
   final String role;
   final String name;
   final String? email;
-  final Map<String, dynamic>? previousAnswers; // optional payload from earlier steps
+
+  // optional explicit fields (preferred when provided)
+  final String? avatarUrl;
+  final String? mobile;
+  final String? dateOfBirth; // ISO yyyy-MM-dd (string)
+  final int? age;
+  final String? religion;
+  final int? religiosityScore;
+  final String? placeOfBirth;
+  final String? journeyStartDate; // ISO yyyy-MM-dd
+
+  // fallback map with previously collected answers (if you used that)
+  final Map<String, dynamic>? previousAnswers;
 
   const RelationshipGoalsScreen({
     super.key,
     required this.role,
     required this.name,
     this.email,
+    this.avatarUrl,
+    this.mobile,
+    this.dateOfBirth,
+    this.age,
+    this.religion,
+    this.religiosityScore,
+    this.placeOfBirth,
+    this.journeyStartDate,
     this.previousAnswers,
   });
 
@@ -22,7 +50,8 @@ class RelationshipGoalsScreen extends StatefulWidget {
 }
 
 class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
-  // goal options
+  final _storage = const FlutterSecureStorage();
+
   final List<String> _goals = [
     'Fun & Adventure',
     'Peace & Stability',
@@ -32,210 +61,273 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
     'Spiritual Connection',
   ];
 
-  final Set<int> _selectedIndexes = {};
-
+  final Set<int> _selectedIndices = {};
   bool _loading = false;
 
-  Widget _buildProgressDots() {
-    return Row(
-      children: List.generate(
-        6,
-            (i) => Expanded(
-          child: Container(
-            height: 6,
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              color: i <= 5 ? const Color(0xFFd99be9) : const Color(0xFFF0ECEF),
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-        ),
-      ),
-    );
+  // Helper to read token (replace key name if you used different)
+  Future<String?> _getSavedAuthToken() async {
+    try {
+      final val = await _storage.read(key: 'auth_token');
+      return val;
+    } catch (e) {
+      // log & return null
+      // ignore: avoid_print
+      print('SecureStorage read error: $e');
+      return null;
+    }
   }
 
-  void _toggleIndex(int i) {
+  void _toggleGoal(int index) {
     setState(() {
-      if (_selectedIndexes.contains(i))
-        _selectedIndexes.remove(i);
-      else
-        _selectedIndexes.add(i);
+      if (_selectedIndices.contains(index)) _selectedIndices.remove(index);
+      else _selectedIndices.add(index);
     });
   }
 
-  bool _hasSelection() => _selectedIndexes.isNotEmpty;
+  /// Build final payload: prefer explicit constructor fields,
+  /// fallback to previousAnswers map when explicit is null.
+  Map<String, dynamic> _buildPayload() {
+    final prev = widget.previousAnswers ?? <String, dynamic>{};
 
-  Future<void> _onComplete() async {
-    if (!_hasSelection()) {
+    String? mobile = widget.mobile ?? (prev['mobile'] as String?);
+    String? dob = widget.dateOfBirth ?? (prev['dateOfBirth'] as String?);
+    int? age = widget.age ??
+        (prev['age'] is int ? prev['age'] as int : null) ??
+        _computeAgeFromIso(dob);
+    String? religion = widget.religion ?? (prev['religion'] as String?);
+    int? religiosity = widget.religiosityScore ??
+        (prev['religiosity'] is int
+            ? prev['religiosity'] as int
+            : (prev['religiosity'] is double
+            ? (prev['religiosity'] as double).round()
+            : null));
+    String? placeOfBirth = widget.placeOfBirth ?? (prev['placeOfBirth'] as String?);
+    String? journeyStart = widget.journeyStartDate ?? (prev['togetherSince'] as String?) ?? (prev['journeyStartDate'] as String?);
+    String? avatarUrl = widget.avatarUrl ?? (prev['avatarUrl'] as String?);
+
+    // ensure dates are ISO yyyy-MM-dd (if they parse-able)
+    final formattedDob = _formatIso(dob);
+    final formattedJourney = _formatIso(journeyStart);
+
+    final payload = <String, dynamic>{
+      "name": widget.name,
+      "role": widget.role,
+      "avatarUrl": avatarUrl,
+      "mobile": (mobile == null || (mobile as String).isEmpty) ? null : mobile,
+      "dateOfBirth": formattedDob,
+      "age": age,
+      "religion": religion,
+      "religiosityScore": religiosity,
+      "placeOfBirth": placeOfBirth,
+      "journeyStartDate": formattedJourney,
+      // additional collected answers
+      "comfortZones": prev['comfortZones'],
+      "emotionalNeeds": prev['emotionalNeeds'],
+      "expectations": prev['expectations'],
+      "communicationStyle": prev['communicationStyle'],
+      "loveLanguage": prev['loveLanguage'],
+      "relationshipGoals": _selectedIndices.map((i) => _goals[i]).toList(),
+      "email": widget.email,
+    };
+
+    // remove nulls to keep payload clean
+    payload.removeWhere((k, v) => v == null);
+    return payload;
+  }
+
+  int? _computeAgeFromIso(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return null;
+    try {
+      final dt = DateTime.parse(isoDate);
+      final now = DateTime.now();
+      int age = now.year - dt.year;
+      if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) {
+        age--;
+      }
+      return age;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String? _formatIso(String? isoDate) {
+    if (isoDate == null) return null;
+    try {
+      final dt = DateTime.parse(isoDate);
+      return DateFormat('yyyy-MM-dd').format(dt);
+    } catch (e) {
+      // if input wasn't parseable, return null
+      return null;
+    }
+  }
+
+  Future<void> _onCompleteSetup() async {
+    if (_selectedIndices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one goal to continue')),
+        const SnackBar(content: Text('Please select at least one relationship goal')),
       );
       return;
     }
 
     setState(() => _loading = true);
 
-    // prepare payload merging previous answers
-    final payload = <String, dynamic>{
-      'role': widget.role,
-      'name': widget.name,
-      'email': widget.email,
-      'relationshipGoals': _selectedIndexes.map((i) => _goals[i]).toList(),
-      if (widget.previousAnswers != null) ...widget.previousAnswers!
+    final payload = _buildPayload();
+
+    // Construct profiles endpoint. ApiInterface has baseUrl; append 'profiles'
+    final String profilesUrl = '${ApiInterface.baseUrl}profiles';
+
+    final token = await _getSavedAuthToken();
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    // debug print
+    // ignore: avoid_print
+    print('Posting to $profilesUrl payload: $payload headers: $headers');
 
     try {
-      // TODO: send payload to backend with your ApiHelper; here we simulate a delay
-      await Future.delayed(const Duration(milliseconds: 700));
+      final resp = await http.post(
+        Uri.parse(profilesUrl),
+        headers: headers,
+        body: jsonEncode(payload),
+      );
+
       setState(() => _loading = false);
 
-      // navigate to final screen (Dashboard). Replace if you have a dedicated "complete" screen.
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const Dashboard()),
-      );
+      // attempt to decode body safely
+      Map<String, dynamic>? decoded;
+      try {
+        decoded = resp.body.isNotEmpty ? jsonDecode(resp.body) as Map<String, dynamic> : null;
+      } catch (_) {
+        decoded = null;
+      }
+
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile created/updated successfully')));
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const Dashboard()));
+        return;
+      }
+
+      // handle non-2xx
+      if (resp.statusCode == 401) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unauthorized — please sign in again.')),
+        );
+        // optionally clear token:
+        try {
+          await _storage.delete(key: 'auth_token');
+        } catch (_) {}
+        return;
+      }
+
+      // other errors
+      final serverMessage = decoded != null
+          ? (decoded['message'] ?? decoded['error'] ?? decoded).toString()
+          : 'Server returned ${resp.statusCode}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $serverMessage')));
     } catch (e) {
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to complete setup: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     const gradient = LinearGradient(colors: [Color(0xFFaf57db), Color(0xFFe46791)]);
-
-    // responsive tile width: two columns on mobile-ish layout
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 720;
-    final tileWidth = isWide ? 240.0 : (width - 120) / 2; // subtract margins/padding
+    final isWide = MediaQuery.of(context).size.width > 720;
+    final tileWidth = isWide ? 220.0 : (MediaQuery.of(context).size.width - 96) / 2;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBFF),
+      appBar: AppBar(
+        title: const Text('Relationship Goals'),
+        backgroundColor: const Color(0xFFffffff),
+        elevation: 0,
+        centerTitle: true,
+        foregroundColor: Colors.black,
+      ),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
-            width: 560,
-            margin: const EdgeInsets.all(24),
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            width: isWide ? 720 : double.infinity,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 18, offset: const Offset(0, 8))],
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 6))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // progress dots (top)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    children: List.generate(
-                      6,
-                          (i) => Expanded(
-                        child: Container(
-                          height: 6,
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
-                          decoration: BoxDecoration(
-                            color: i <= 5 ? const Color(0xFFd99be9) : const Color(0xFFF0ECEF),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // header icon + title + subtitle
+                // header
                 Center(
                   child: Column(
                     children: [
                       Container(
                         height: 64,
                         width: 64,
-                        decoration: BoxDecoration(shape: BoxShape.circle, gradient: gradient),
-                        child: const Icon(Icons.icecream, color: Colors.white, size: 34),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: gradient),
+                        child: const Icon(Icons.track_changes, color: Colors.white, size: 34),
                       ),
-                      const SizedBox(height: 16),
-                      const Text('Relationship Goals', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      const Text('Relationship Goals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      Text('What matters most to you in your relationship?', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+                      Text('What matters most to you in your relationship?', style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.center),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text('What are your relationship goals? (Select all that apply)', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
 
-                // goal tiles
+                // goals grid
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: List.generate(_goals.length, (i) {
-                    final selected = _selectedIndexes.contains(i);
+                    final selected = _selectedIndices.contains(i);
                     return GestureDetector(
-                      onTap: () => _toggleIndex(i),
+                      onTap: () => _toggleGoal(i),
                       child: Container(
                         width: tileWidth,
-                        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                         decoration: BoxDecoration(
                           color: selected ? const Color(0xFFfaf5ff) : Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? const Color(0xFFb76bd6) : Colors.grey.shade300,
-                            width: selected ? 2.0 : 1.2,
-                          ),
-                          boxShadow: selected ? [BoxShadow(color: const Color(0xFFb76bd6).withOpacity(0.04), blurRadius: 8, offset: const Offset(0,6))] : null,
+                          border: Border.all(color: selected ? const Color(0xFFb76bd6) : Colors.grey.shade300),
                         ),
-                        child: Text(
-                          _goals[i],
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: selected ? const Color(0xFF5a0d6f) : Colors.black),
-                        ),
+                        child: Text(_goals[i], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
                       ),
                     );
                   }),
                 ),
-
                 const SizedBox(height: 18),
-
-                // info card
                 Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7EEF8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFFF7F1F6), borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text('Personalized AI Guidance', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Personalized AI Guidance', style: TextStyle(fontWeight: FontWeight.w700)),
                       SizedBox(height: 8),
-                      Text(
-                        'Based on your age and responses, Cuplix will provide age-appropriate relationship guidance tailored to your life stage.',
-                        style: TextStyle(color: Colors.black54),
-                      ),
+                      Text('Based on your age and responses, Cuplix will provide age-appropriate relationship guidance tailored to your life stage.'),
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 4),
-
-                // bottom buttons: Back, Complete Setup
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         child: const Text('Back'),
                       ),
                     ),
@@ -244,22 +336,9 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
                       child: _loading
                           ? const SizedBox(height: 48, child: Center(child: CircularProgressIndicator()))
                           : ElevatedButton(
-                        onPressed: _hasSelection() ? _onComplete : () {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select at least one goal')));
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 0),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: Container(
-                          height: 48,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(colors: [Color(0xFFaf57db), Color(0xFFe46791)]),
-                            borderRadius: BorderRadius.all(Radius.circular(14)),
-                          ),
-                          child: const Text('Complete Setup', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                        ),
+                        onPressed: _onCompleteSetup,
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), backgroundColor: const Color(0xFFaf57db), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        child: const Text('Complete Setup', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
