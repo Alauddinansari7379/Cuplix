@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../apiInterface/api_helper.dart';
 import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
+import '../utils/SharedPreferences.dart';
 
 class RelationshipGoalsScreen extends StatefulWidget {
   // required basic info
@@ -64,18 +65,6 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
   final Set<int> _selectedIndices = {};
   bool _loading = false;
 
-  // Helper to read token (replace key name if you used different)
-  Future<String?> _getSavedAuthToken() async {
-    try {
-      final val = await _storage.read(key: 'auth_token');
-      return val;
-    } catch (e) {
-      // log & return null
-      // ignore: avoid_print
-      print('SecureStorage read error: $e');
-      return null;
-    }
-  }
 
   void _toggleGoal(int index) {
     setState(() {
@@ -176,7 +165,7 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
     // Construct profiles endpoint. ApiInterface has baseUrl; append 'profiles'
     final String profilesUrl = '${ApiInterface.baseUrl}profiles';
 
-    final token = await _getSavedAuthToken();
+    final token = await UserData.getToken();
 
     final headers = <String, String>{
       'Content-Type': 'application/json',

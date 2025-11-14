@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../apiInterface/api_helper.dart';
 import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
+import '../utils/SharedPreferences.dart';
 import 'OnboardingRoleSelection.dart';
 
 // adjust these imports to your project package
@@ -285,6 +286,8 @@ class _LoginPageState extends State<LoginPage> {
 
   // ---------- Sign In ----------
   Future<void> _signIn() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {}); // ensures we are in UI cycle
+
     final email = _signInEmailController.text.trim();
     final password = _signInPasswordController.text;
 
@@ -295,27 +298,42 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    setState(() => _loading = true);
-
     final payload = {'email': email, 'password': password};
-    final result = await ApiHelper.post(url: ApiInterface.login, body: payload);
-
-    setState(() => _loading = false);
+    final result = await ApiHelper.post(
+      url: ApiInterface.login,
+      body: payload,
+      context: context,
+      showLoader: true,
+    );
 
     if (result['success'] == true) {
-      // if backend returns token/data, you can store it here (secure_storage)
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Signed in successfully!')));
+      // get real fields from backend response instead of hard-coded values
+      // final data = result['data'] ?? {};
+      // final token = data['token']?.toString() ?? '';
+      // final name = data['name']?.toString() ?? '';
+      // final userEmail = data['email']?.toString() ?? '';
+      // final number = data['number']?.toString() ?? '';
+      //
+      // // Save after success
+      // await UserData.saveUserData(
+      //   token: token,
+      //   name: name,
+      //   email: userEmail,
+      //   number: number,
+      // );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in successfully!')),
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const Dashboard()),
       );
     } else {
       final err = result['error'] ?? 'Login failed';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(err.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err.toString())),
+      );
     }
   }
 
