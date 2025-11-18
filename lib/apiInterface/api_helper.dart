@@ -69,4 +69,46 @@ class ApiHelper {
       return {'success': false, 'error': e.toString()};
     }
   }
+  /// Generic DELETE request – sends ONLY Bearer token in header
+  static Future<Map<String, dynamic>> delete({
+    required String url,
+    required String token,
+    BuildContext? context,
+    bool showLoader = false,
+  }) async {
+    try {
+      if (showLoader && context != null) ApiLoader.show(context);
+
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',   // ✅ Only header needed
+        },
+      );
+
+      if (showLoader && context != null) ApiLoader.hide();
+
+      Map<String, dynamic>? decoded;
+      if (response.body.isNotEmpty) {
+        try {
+          decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        } catch (_) {
+          decoded = null;
+        }
+      }
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true, 'data': decoded};
+      } else {
+        return {
+          'success': false,
+          'error': decoded?['message'] ?? 'Something went wrong'
+        };
+      }
+    } catch (e) {
+      if (showLoader && context != null) ApiLoader.hide();
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
 }

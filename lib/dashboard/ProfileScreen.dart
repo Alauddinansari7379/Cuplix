@@ -1,12 +1,25 @@
 // lib/profile/profile_screen.dart
 import 'dart:convert';
 
+import 'package:cuplix/dashboard/JournalScreen.dart';
+import 'package:cuplix/more/AiTherapistScreen.dart';
+import 'package:cuplix/more/GiftMarketplaceScreen.dart';
+import 'package:cuplix/more/MirrorModeScreen.dart';
+import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../apiInterface/api_interface.dart';
 import '../utils/SharedPreferences.dart';
-import '../login/OnboardingRoleSelection.dart'; // 👈 added this import
+import '../login/OnboardingRoleSelection.dart';
+import 'CoupleCalendarScreen.dart';
+import 'CycleTrackerScreen.dart';
+import 'EmotionalCompatibilityScreen.dart';
+import 'InvitePartnerScreen.dart';
+import 'MoodMusicScreen.dart';
+import 'PrivacyDashboardScreen.dart';
+import 'SensorTrackingScreen.dart';
+import 'SleepStressScreen.dart'; // 👈 added this import
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -356,7 +369,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Connect with your significant other to sync your relationship data',
                       onTap: () {
-                        // invite partner flow
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const InvitePartnerScreen()),
+                        );
                       },
                     ),
                   ],
@@ -394,7 +410,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Track your menstrual cycle and hormonal mood patterns',
                       onTap: () {
-                        // navigate to Cycle Tracker
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CycleTrackerScreen(),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -407,7 +428,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Monitor your sleep quality and stress levels',
                       onTap: () {
-                        // navigate to Sleep & Stress
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SleepStressScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -420,7 +444,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Real-time emotional and conflict detection',
                       onTap: () {
-                        // navigate to Sensor Tracking
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SensorTrackingScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -449,7 +478,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'AI-managed scheduling for relationship events',
                       onTap: () {
-                        // navigate to Couple Calendar
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CoupleCalendarScreen(),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -462,7 +496,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Deep emotional interaction visualization',
                       onTap: () {
-                        // navigate to Compatibility Map
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EmotionalCompatibilityScreen(),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -475,7 +514,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Personalized playlists for emotional regulation',
                       onTap: () {
-                        // navigate to Mood Music
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MoodMusicScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -488,7 +530,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Conflict analysis with improvement suggestions',
                       onTap: () {
-                        // navigate to Therapist Mode
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AiTherapistScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -501,7 +546,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       "Practice conversations with your partner's AI twin",
                       onTap: () {
-                        // navigate to Mirror Mode
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MirrorModeScreen()),
+                        );
                       },
                     ),
                   ],
@@ -528,7 +576,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Journal',
                       subtitle: 'Capture and share special moments',
                       onTap: () {
-                        // Navigator.push(... to Journal)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const JournalScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -540,7 +591,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Gift Marketplace',
                       subtitle: 'AI-recommended gifts and experiences',
                       onTap: () {
-                        // Navigator.push(... to Gift Marketplace)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const GiftMarketplaceScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -553,7 +607,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'View your earned points and achievements',
                       onTap: () {
-                        // Navigator.push(... to Rewards)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RewardsScreen()),
+                        );
                       },
                     ),
                     const SizedBox(height: 10),
@@ -566,7 +623,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle:
                       'Manage your data collection and privacy settings',
                       onTap: () {
-                        // Navigator.push(... to Privacy Dashboard)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacyDashboardScreen(),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 12),
