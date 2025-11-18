@@ -5,10 +5,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 
-import '../apiInterface/api_helper.dart';
 import '../apiInterface/api_interface.dart';
 import '../dashboard/dashboard.dart';
+
+// optional: your shared prefs helper from previous message
 import '../utils/SharedPreferences.dart';
+
 
 class RelationshipGoalsScreen extends StatefulWidget {
   // required basic info
@@ -65,7 +67,6 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
   final Set<int> _selectedIndices = {};
   bool _loading = false;
 
-
   void _toggleGoal(int index) {
     setState(() {
       if (_selectedIndices.contains(index)) _selectedIndices.remove(index);
@@ -90,8 +91,11 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
             : (prev['religiosity'] is double
             ? (prev['religiosity'] as double).round()
             : null));
-    String? placeOfBirth = widget.placeOfBirth ?? (prev['placeOfBirth'] as String?);
-    String? journeyStart = widget.journeyStartDate ?? (prev['togetherSince'] as String?) ?? (prev['journeyStartDate'] as String?);
+    String? placeOfBirth =
+        widget.placeOfBirth ?? (prev['placeOfBirth'] as String?);
+    String? journeyStart = widget.journeyStartDate ??
+        (prev['togetherSince'] as String?) ??
+        (prev['journeyStartDate'] as String?);
     String? avatarUrl = widget.avatarUrl ?? (prev['avatarUrl'] as String?);
 
     // ensure dates are ISO yyyy-MM-dd (if they parse-able)
@@ -150,6 +154,31 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
     }
   }
 
+  /// Try to obtain auth token from SharedPreferences first (SharedPrefs),
+  /// then fall back to FlutterSecureStorage keys.
+  Future<String?> _getAuthToken() async {
+    try {
+      // try shared_prefs helper (if present)
+      final spToken = await SharedPrefs.getAccessToken();
+      if (spToken != null && spToken.isNotEmpty) return spToken;
+    } catch (_) {
+      // ignore - helper might not exist or fail
+    }
+
+    // check common keys in secure storage (several names to be safe)
+    try {
+      final keysToTry = ['user_token', 'auth_token', 'access_token', 'token'];
+      for (final key in keysToTry) {
+        final v = await _storage.read(key: key);
+        if (v != null && v.isNotEmpty) return v;
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+
+    return null;
+  }
+
   Future<void> _onCompleteSetup() async {
     if (_selectedIndices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,17 +194,15 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
     // Construct profiles endpoint. ApiInterface has baseUrl; append 'profiles'
     final String profilesUrl = '${ApiInterface.baseUrl}profiles';
 
-    final token = await UserData.getToken();
+    final token = await _getAuthToken();
 
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
+    if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
 
-    // debug print
+    // debug print (ignore in release)
     // ignore: avoid_print
     print('Posting to $profilesUrl payload: $payload headers: $headers');
 
@@ -197,25 +224,29 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
       }
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        // optionally save returned profile or tokens here if server returns them
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile created/updated successfully')));
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const Dashboard()));
         return;
       }
 
-      // handle non-2xx
+      // handle 401 unauthorized
       if (resp.statusCode == 401) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unauthorized — please sign in again.')),
         );
-        // optionally clear token:
+        // clear saved tokens from both storage places (best-effort)
         try {
-          await _storage.delete(key: 'auth_token');
+          await SharedPrefs.clearAll();
+        } catch (_) {}
+        try {
+          await _storage.deleteAll();
         } catch (_) {}
         return;
       }
 
-      // other errors
+      // other errors: show server message if any
       final serverMessage = decoded != null
           ? (decoded['message'] ?? decoded['error'] ?? decoded).toString()
           : 'Server returned ${resp.statusCode}';

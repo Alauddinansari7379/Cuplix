@@ -1,57 +1,71 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class UserData {
-  static const _storage = FlutterSecureStorage();
+class SharedPrefs {
+  // -------------------- Keys --------------------
+  static const String _keyAccessToken = "access_token";
+  static const String _keyRefreshToken = "refresh_token";
+  static const String _keyUserName = "user_name";
+  static const String _keyUserEmail = "user_email";
+  static const String _keyUserNumber = "user_number";
 
-  // Keys
-  static const String _keyToken = 'user_token';
-  static const String _keyName = 'user_name';
-  static const String _keyEmail = 'user_email';
-  static const String _keyNumber = 'user_number';
+  // -------------------- Save Methods --------------------
 
-  /// Save user data securely
-  static Future<void> saveUserData({
-    required String token,
-    required String name,
-    required String email,
-    required String number,
-  }) async {
-    await _storage.write(key: _keyToken, value: token);
-    await _storage.write(key: _keyName, value: name);
-    await _storage.write(key: _keyEmail, value: email);
-    await _storage.write(key: _keyNumber, value: number);
+  static Future<void> setAccessToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAccessToken, token);
   }
 
-  /// Get all user data as a map
-  static Future<Map<String, String?>> getUserData() async {
-    final token = await _storage.read(key: _keyToken);
-    final name = await _storage.read(key: _keyName);
-    final email = await _storage.read(key: _keyEmail);
-    final number = await _storage.read(key: _keyNumber);
-
-    return {
-      'token': token,
-      'name': name,
-      'email': email,
-      'number': number,
-    };
+  static Future<void> setRefreshToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRefreshToken, token);
   }
 
-  /// Individual getters
-  static Future<String?> getToken() async =>
-      await _storage.read(key: _keyToken);
+  static Future<void> setName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserName, name);
+  }
 
-  static Future<String?> getName() async =>
-      await _storage.read(key: _keyName);
+  static Future<void> setEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserEmail, email);
+  }
 
-  static Future<String?> getEmail() async =>
-      await _storage.read(key: _keyEmail);
+  static Future<void> setNumber(String number) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserNumber, number);
+  }
 
-  static Future<String?> getNumber() async =>
-      await _storage.read(key: _keyNumber);
+  // -------------------- Get Methods --------------------
 
-  /// Clear all stored data (use on logout)
-  static Future<void> clearUserData() async {
-    await _storage.deleteAll();
+  static Future<String?> getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyAccessToken);
+  }
+
+  static Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyRefreshToken);
+  }
+
+  static Future<String?> getName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyUserName);
+  }
+
+  static Future<String?> getEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyUserEmail);
+  }
+
+  static Future<String?> getNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyUserNumber);
+  }
+
+  // -------------------- Clear All --------------------
+
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
   }
 }

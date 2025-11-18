@@ -1,7 +1,9 @@
+// lib/login/login.dart
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../apiInterface/api_helper.dart';
 import '../apiInterface/api_interface.dart';
@@ -9,8 +11,7 @@ import '../dashboard/dashboard.dart';
 import '../utils/SharedPreferences.dart';
 import 'OnboardingRoleSelection.dart';
 
-// adjust these imports to your project package
-
+// Entry widget (optional)
 void main() {
   runApp(const Login());
 }
@@ -56,6 +57,9 @@ class _LoginPageState extends State<LoginPage> {
   // OTP / verification state
   bool _otpSent = false;
   bool _emailVerified = false;
+
+  // secure storage (also used to write legacy keys if needed)
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   @override
   void dispose() {
@@ -124,8 +128,7 @@ class _LoginPageState extends State<LoginPage> {
     if (Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
-  // --------- Verify Email (send OTP) ----------
-
+  // ---------- Verify Email (send OTP) ----------
   Future<void> _verifyEmail() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
@@ -275,7 +278,6 @@ class _LoginPageState extends State<LoginPage> {
           builder: (context) => OnboardingRoleSelection(userEmail: email),
         ),
       );
-
     } else {
       final err = result['error'] ?? 'Registration failed';
       ScaffoldMessenger.of(
@@ -299,40 +301,93 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final payload = {'email': email, 'password': password};
-    final result = await ApiHelper.post(
-      url: ApiInterface.login,
-      body: payload,
-      context: context,
-      showLoader: true,
-    );
 
-    if (result['success'] == true) {
-      // get real fields from backend response instead of hard-coded values
-      // final data = result['data'] ?? {};
-      // final token = data['token']?.toString() ?? '';
-      // final name = data['name']?.toString() ?? '';
-      // final userEmail = data['email']?.toString() ?? '';
-      // final number = data['number']?.toString() ?? '';
-      //
-      // // Save after success
-      // await UserData.saveUserData(
-      //   token: token,
-      //   name: name,
-      //   email: userEmail,
-      //   number: number,
-      // );
+    setState(() => _loading = true);
+    _showModalLoader();
 
+    try {
+      final result = await ApiHelper.post(
+          url: ApiInterface.login, body: payload);
+
+      _hideModalLoader();
+      setState(() => _loading = false);
+
+      if (result['success'] == true) {
+        final data = result['data'];
+
+        // Typical shapes: { user: {...}, accessToken: "...", refreshToken: "..." }
+        String? accessToken;
+        String? refreshToken;
+        Map<String, dynamic>? userMap;
+
+        if (data != null && data is Map<String, dynamic>) {
+          // token keys differ by backend - try common ones
+          accessToken = (data['accessToken'] ?? data['token'] ?? data['access_token'])?.toString();
+          refreshToken = (data['refreshToken'] ?? data['refresh_token'])?.toString();
+
+          if (data['user'] is Map) {
+            userMap = Map<String, dynamic>.from(data['user'] as Map);
+          } else if (data['user'] is String) {
+            try {
+              userMap = jsonDecode(data['user'] as String) as Map<String, dynamic>;
+            } catch (_) {
+              userMap = null;
+            }
+          } else if (data['user'] == null) {
+            // sometimes some backends put user fields at top-level
+            // try top-level name/email
+            final nameTop = data['name']?.toString();
+            final emailTop = data['email']?.toString();
+            if (nameTop != null || emailTop != null) {
+              userMap = <String, dynamic>{};
+              if (nameTop != null) userMap['name'] = nameTop;
+              if (emailTop != null) userMap['email'] = emailTop;
+            }
+          }
+        }
+
+        final userEmail = userMap != null ? userMap['email']?.toString() : null;
+        final userName = userMap != null ? userMap['name']?.toString() : null;
+        final userNumber = userMap != null ? userMap['number']?.toString() : null;
+
+        // Save tokens + user info securely (best-effort)
+        try {
+          if (accessToken != null && accessToken.isNotEmpty) {
+            await SharedPrefs.setAccessToken(accessToken);
+            // also write legacy key for backward compat
+            await _secureStorage.write(key: 'auth_token', value: accessToken);
+          }
+          if (refreshToken != null && refreshToken.isNotEmpty) {
+            await SharedPrefs.setRefreshToken(refreshToken);
+            await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+          }
+          if (userEmail != null) await SharedPrefs.setEmail(userEmail);
+          if (userName != null) await SharedPrefs.setName(userName);
+          if (userNumber != null) await SharedPrefs.setNumber(userNumber);
+        } catch (e) {
+          // don't break login flow on storage failures
+          // ignore: avoid_print
+          print('Warning: failed to persist login data: $e');
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Signed in successfully!')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Dashboard()),
+        );
+      } else {
+        final err = result['error'] ?? 'Login failed';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err.toString())),
+        );
+      }
+    } catch (e) {
+      _hideModalLoader();
+      setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed in successfully!')),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const Dashboard()),
-      );
-    } else {
-      final err = result['error'] ?? 'Login failed';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err.toString())),
+        SnackBar(content: Text('Network error: $e')),
       );
     }
   }
@@ -383,8 +438,7 @@ class _LoginPageState extends State<LoginPage> {
                   'lib/assets/logo.jpg',
                   height: 60,
                   width: 60,
-                  errorBuilder:
-                      (c, e, s) => const Icon(
+                  errorBuilder: (c, e, s) => const Icon(
                     Icons.favorite,
                     size: 60,
                     color: Colors.purple,
@@ -395,8 +449,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 // Gradient title
                 ShaderMask(
-                  shaderCallback:
-                      (bounds) => gradient.createShader(
+                  shaderCallback: (bounds) => gradient.createShader(
                     Rect.fromLTWH(0, 0, bounds.width, bounds.height),
                   ),
                   child: const Text(
@@ -438,11 +491,9 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color:
-                              isSignIn ? Colors.white : Colors.transparent,
+                              color: isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                              isSignIn
+                              boxShadow: isSignIn
                                   ? [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.05),
@@ -457,8 +508,7 @@ class _LoginPageState extends State<LoginPage> {
                               "Sign In",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color:
-                                isSignIn ? Colors.black : Colors.grey[600],
+                                color: isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -475,11 +525,9 @@ class _LoginPageState extends State<LoginPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color:
-                              !isSignIn ? Colors.white : Colors.transparent,
+                              color: !isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                              !isSignIn
+                              boxShadow: !isSignIn
                                   ? [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.05),
@@ -494,8 +542,7 @@ class _LoginPageState extends State<LoginPage> {
                               "Sign Up",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color:
-                                !isSignIn ? Colors.black : Colors.grey[600],
+                                color: !isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),

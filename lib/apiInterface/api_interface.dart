@@ -6,5 +6,5 @@ class ApiInterface {
   static const String login = "${baseUrl}auth/login";
   static const String sendOtp = "${baseUrl}auth/send-otp";
   static const String verifyEmail = "${baseUrl}auth/verify-otp";
-  static const String profiles = "${baseUrl}profiles";
+  static const String profiles = "${baseUrl}auth/profiles";
 }
