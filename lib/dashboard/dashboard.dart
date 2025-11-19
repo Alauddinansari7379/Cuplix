@@ -4,7 +4,6 @@ import 'package:cuplix/dashboard/ProfileScreen.dart';
 import 'package:flutter/material.dart';
 
 import 'ChatScreen.dart';
-import 'UpgradeToCuplixScreen.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -192,14 +191,7 @@ class _DashboardContent extends StatelessWidget {
                       ),
                     ),
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const UpgradeToCuplixScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () {},
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
