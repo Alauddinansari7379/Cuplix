@@ -9,7 +9,8 @@ import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../apiInterface/api_interface.dart';
+import '../apiInterface/APIHelper.dart';
+import '../apiInterface/ApiInterface.dart';
 import '../utils/SharedPreferences.dart';
 import '../login/OnboardingRoleSelection.dart';
 import 'CoupleCalendarScreen.dart';
@@ -22,7 +23,7 @@ import 'SensorTrackingScreen.dart';
 import 'SleepStressScreen.dart'; // 👈 added this import
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -45,6 +46,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _fetchProfile() async {
     try {
+      setState(() => _loading = true);
+
       final token = await SharedPrefs.getAccessToken();
 
       if (token == null || token.isEmpty) {
@@ -55,21 +58,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      final url = '${ApiInterface.profiles}/me';
+      final url = ApiInterface.profiles;
 
-      final resp = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+      // Call API via ApiHelper with loader and token header
+      final result = await ApiHelper.getWithAuth(
+        url: url,
+        token: token,
+        context: context,
+        showLoader: false,
       );
 
       if (!mounted) return;
 
-      if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        final decoded = jsonDecode(resp.body);
+      if (result['success'] == true) {
+        final decoded = result['data'];
 
         // Try to support both { data: {...} } and plain {...}
         dynamic profileJson = decoded;
@@ -96,22 +98,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _error = 'Invalid profile data received.';
           });
         }
-      } else if (resp.statusCode == 401) {
-        setState(() {
-          _loading = false;
-          _error = 'Session expired. Please sign in again.';
-        });
       } else {
-        String msg = 'Failed to load profile (code ${resp.statusCode})';
-        try {
-          final decoded = jsonDecode(resp.body);
-          if (decoded is Map && decoded['message'] != null) {
-            msg = decoded['message'].toString();
-          }
-        } catch (_) {}
+        final err = result['error'] ?? 'Failed to load profile.';
         setState(() {
           _loading = false;
-          _error = msg;
+          _error = err;
         });
       }
     } catch (e) {

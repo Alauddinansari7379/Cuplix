@@ -5,8 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 
-import '../apiInterface/api_interface.dart';
-import '../dashboard/dashboard.dart';
+import '../apiInterface/ApiInterface.dart';
+import '../dashboard/Dashboard.dart';
 
 // optional: your shared prefs helper from previous message
 import '../utils/SharedPreferences.dart';

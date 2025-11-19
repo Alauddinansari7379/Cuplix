@@ -7,8 +7,14 @@ class SharedPrefs {
   static const String _keyUserName = "user_name";
   static const String _keyUserEmail = "user_email";
   static const String _keyUserNumber = "user_number";
+  static const String _avatarUrl = "avatarUrl";
 
   // -------------------- Save Methods --------------------
+
+  static Future<void> setAvatar(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_avatarUrl, token);
+  }
 
   static Future<void> setAccessToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,6 +42,11 @@ class SharedPrefs {
   }
 
   // -------------------- Get Methods --------------------
+
+  static Future<String?> getAvatar() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_avatarUrl);
+  }
 
   static Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,5 +78,14 @@ class SharedPrefs {
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+  }
+
+  // -------------------- Login Condition --------------------
+
+  /// Returns true if user is logged in (access token exists)
+  static Future<bool> isLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_keyAccessToken);
+    return token != null && token.isNotEmpty;
   }
 }

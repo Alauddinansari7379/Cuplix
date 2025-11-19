@@ -1,7 +1,7 @@
 // file: lib/login/comfort_zones_needs_screen.dart
 import 'package:cuplix/login/RelationshipGoalsScreen.dart';
 import 'package:flutter/material.dart';
-import '../dashboard/dashboard.dart'; // adjust path if needed
+import '../dashboard/Dashboard.dart'; // adjust path if needed
 import 'package:intl/intl.dart';
 
 class ComfortZonesNeedsScreen extends StatefulWidget {

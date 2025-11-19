@@ -1,42 +1,27 @@
 // lib/login/login.dart
 import 'dart:convert';
 
+import 'package:cuplix/login/SplashScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../apiInterface/api_helper.dart';
-import '../apiInterface/api_interface.dart';
-import '../dashboard/dashboard.dart';
+import '../apiInterface/APIHelper.dart';
+import '../apiInterface/ApiInterface.dart';
+import '../dashboard/Dashboard.dart';
+import '../services/GoogleSignInService.dart';
 import '../utils/SharedPreferences.dart';
 import 'OnboardingRoleSelection.dart';
 
-// Entry widget (optional)
-void main() {
-  runApp(const Login());
-}
 
-class Login extends StatelessWidget {
+class Login extends StatefulWidget {
   const Login({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const LoginPage(),
-      theme: ThemeData(textTheme: GoogleFonts.poppinsTextTheme()),
-    );
-  }
+  State<Login> createState() => _LoginPageState();
 }
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
-
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<Login> {
   bool isSignIn = true;
 
   // controllers for sign-up fields
@@ -591,7 +576,9 @@ class _LoginPageState extends State<LoginPage> {
             ],
           ),
           child: OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: () {
+              GoogleAuthClient.signInWithGoogleAndBackend(context);
+              },
             icon: Image.asset(
               'lib/assets/chrome.png',
               height: 18,

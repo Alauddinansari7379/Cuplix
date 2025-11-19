@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../dashboard/dashboard.dart';
+import '../dashboard/Dashboard.dart';
 import 'LoveLanguageTestScreen.dart';
 
 class OnboardingNameScreen extends StatefulWidget {
