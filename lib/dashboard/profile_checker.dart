@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:cuplix/utils/SharedPreferences.dart';
 
-import '../apiInterface/APIHelper.dart';
-import '../apiInterface/ApiInterface.dart';
+ import '../apiInterface/ApiInterface.dart';
+ import '../apiInterface/ApIHelper.dart';
 import '../login/Login.dart';
 import '../login/ProfileCompletionPage.dart';
 

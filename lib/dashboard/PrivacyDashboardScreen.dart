@@ -1,8 +1,8 @@
 // lib/privacy/PrivacyDashboardScreen.dart
 import 'package:flutter/material.dart';
 
-import '../apiInterface/api_helper.dart';
-import '../apiInterface/api_interface.dart';
+import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApIHelper.dart';
 import '../login/login.dart';
 import '../utils/SharedPreferences.dart';
 

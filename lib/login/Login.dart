@@ -6,13 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../apiInterface/APIHelper.dart';
 import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApIHelper.dart';
 import '../dashboard/Dashboard.dart';
 import '../services/GoogleSignInService.dart';
 import '../utils/SharedPreferences.dart';
 import 'OnboardingRoleSelection.dart';
-
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -68,7 +67,7 @@ class _LoginPageState extends State<Login> {
     );
     if (picked != null) {
       _dobController.text =
-      "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+          "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
     }
   }
 
@@ -161,9 +160,9 @@ class _LoginPageState extends State<Login> {
     final otp = _otpController.text.trim();
 
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Email is required')));
       return;
     }
     if (otp.isEmpty) {
@@ -176,7 +175,8 @@ class _LoginPageState extends State<Login> {
     _showModalLoader();
     try {
       final res = await ApiHelper.post(
-        url: ApiInterface.verifyEmail, // ensure this exists in your ApiInterface
+        url: ApiInterface.verifyEmail,
+        // ensure this exists in your ApiInterface
         body: {'email': email, 'otp': otp},
       );
       _hideModalLoader();
@@ -190,14 +190,18 @@ class _LoginPageState extends State<Login> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['error']?.toString() ?? 'OTP verification failed')),
+          SnackBar(
+            content: Text(
+              res['error']?.toString() ?? 'OTP verification failed',
+            ),
+          ),
         );
       }
     } catch (e) {
       _hideModalLoader();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Network error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Network error: $e')));
     }
   }
 
@@ -211,7 +215,11 @@ class _LoginPageState extends State<Login> {
     // Require OTP verification before allowing registration
     if (!_emailVerified) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please verify your email with the OTP before creating an account')),
+        const SnackBar(
+          content: Text(
+            'Please verify your email with the OTP before creating an account',
+          ),
+        ),
       );
       return;
     }
@@ -230,16 +238,15 @@ class _LoginPageState extends State<Login> {
     }
 
     // Build payload exactly as your backend expects: email, password, mobile, dateofbirth
-    final payload = <String, dynamic>{
-      'email': email,
-      'password': password,
-    };
+    final payload = <String, dynamic>{'email': email, 'password': password};
 
     final formattedDob = _formatDobForApi(dobText);
     final normalizedMobile = _normalizeMobile(mobile);
 
     if (normalizedMobile != null) payload['mobile'] = normalizedMobile;
-    if (formattedDob != null) payload['dateOfBirth'] = formattedDob; // use camelCase key expected by backend
+    if (formattedDob != null)
+      payload['dateOfBirth'] =
+          formattedDob; // use camelCase key expected by backend
 
     setState(() => _loading = true);
 
@@ -273,7 +280,9 @@ class _LoginPageState extends State<Login> {
 
   // ---------- Sign In ----------
   Future<void> _signIn() async {
-    WidgetsBinding.instance.addPostFrameCallback((_) {}); // ensures we are in UI cycle
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) {},
+    ); // ensures we are in UI cycle
 
     final email = _signInEmailController.text.trim();
     final password = _signInPasswordController.text;
@@ -292,7 +301,9 @@ class _LoginPageState extends State<Login> {
 
     try {
       final result = await ApiHelper.post(
-          url: ApiInterface.login, body: payload);
+        url: ApiInterface.login,
+        body: payload,
+      );
 
       _hideModalLoader();
       setState(() => _loading = false);
@@ -307,14 +318,18 @@ class _LoginPageState extends State<Login> {
 
         if (data != null && data is Map<String, dynamic>) {
           // token keys differ by backend - try common ones
-          accessToken = (data['accessToken'] ?? data['token'] ?? data['access_token'])?.toString();
-          refreshToken = (data['refreshToken'] ?? data['refresh_token'])?.toString();
+          accessToken =
+              (data['accessToken'] ?? data['token'] ?? data['access_token'])
+                  ?.toString();
+          refreshToken =
+              (data['refreshToken'] ?? data['refresh_token'])?.toString();
 
           if (data['user'] is Map) {
             userMap = Map<String, dynamic>.from(data['user'] as Map);
           } else if (data['user'] is String) {
             try {
-              userMap = jsonDecode(data['user'] as String) as Map<String, dynamic>;
+              userMap =
+                  jsonDecode(data['user'] as String) as Map<String, dynamic>;
             } catch (_) {
               userMap = null;
             }
@@ -333,7 +348,8 @@ class _LoginPageState extends State<Login> {
 
         final userEmail = userMap != null ? userMap['email']?.toString() : null;
         final userName = userMap != null ? userMap['name']?.toString() : null;
-        final userNumber = userMap != null ? userMap['number']?.toString() : null;
+        final userNumber =
+            userMap != null ? userMap['number']?.toString() : null;
 
         // Save tokens + user info securely (best-effort)
         try {
@@ -344,7 +360,10 @@ class _LoginPageState extends State<Login> {
           }
           if (refreshToken != null && refreshToken.isNotEmpty) {
             await SharedPrefs.setRefreshToken(refreshToken);
-            await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+            await _secureStorage.write(
+              key: 'refresh_token',
+              value: refreshToken,
+            );
           }
           if (userEmail != null) await SharedPrefs.setEmail(userEmail);
           if (userName != null) await SharedPrefs.setName(userName);
@@ -364,16 +383,16 @@ class _LoginPageState extends State<Login> {
         );
       } else {
         final err = result['error'] ?? 'Login failed';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(err.toString())));
       }
     } catch (e) {
       _hideModalLoader();
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Network error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Network error: $e')));
     }
   }
 
@@ -423,20 +442,22 @@ class _LoginPageState extends State<Login> {
                   'lib/assets/logo.jpg',
                   height: 60,
                   width: 60,
-                  errorBuilder: (c, e, s) => const Icon(
-                    Icons.favorite,
-                    size: 60,
-                    color: Colors.purple,
-                  ),
+                  errorBuilder:
+                      (c, e, s) => const Icon(
+                        Icons.favorite,
+                        size: 60,
+                        color: Colors.purple,
+                      ),
                 ),
 
                 const SizedBox(height: 12),
 
                 // Gradient title
                 ShaderMask(
-                  shaderCallback: (bounds) => gradient.createShader(
-                    Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                  ),
+                  shaderCallback:
+                      (bounds) => gradient.createShader(
+                        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                      ),
                   child: const Text(
                     'Welcome to Cuplix.AI',
                     textAlign: TextAlign.center,
@@ -476,24 +497,27 @@ class _LoginPageState extends State<Login> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                                  isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSignIn
-                                  ? [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 5,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                                  : [],
+                              boxShadow:
+                                  isSignIn
+                                      ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                      : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               "Sign In",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: isSignIn ? Colors.black : Colors.grey[600],
+                                color:
+                                    isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -510,24 +534,27 @@ class _LoginPageState extends State<Login> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             decoration: BoxDecoration(
-                              color: !isSignIn ? Colors.white : Colors.transparent,
+                              color:
+                                  !isSignIn ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: !isSignIn
-                                  ? [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 5,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ]
-                                  : [],
+                              boxShadow:
+                                  !isSignIn
+                                      ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                      : [],
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               "Sign Up",
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: !isSignIn ? Colors.black : Colors.grey[600],
+                                color:
+                                    !isSignIn ? Colors.black : Colors.grey[600],
                                 fontSize: 14,
                               ),
                             ),
@@ -543,7 +570,9 @@ class _LoginPageState extends State<Login> {
                   firstChild: _buildSignInForm(gradient),
                   secondChild: _buildSignUpForm(gradient),
                   crossFadeState:
-                  isSignIn ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                      isSignIn
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
                   duration: const Duration(milliseconds: 250),
                 ),
 
@@ -578,7 +607,7 @@ class _LoginPageState extends State<Login> {
           child: OutlinedButton.icon(
             onPressed: () {
               GoogleAuthClient.signInWithGoogleAndBackend(context);
-              },
+            },
             icon: Image.asset(
               'lib/assets/chrome.png',
               height: 18,
@@ -661,27 +690,28 @@ class _LoginPageState extends State<Login> {
               ),
             ],
           ),
-          child: _loading
-              ? _buildLoader()
-              : ElevatedButton(
-            onPressed: _signIn,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Sign In',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
+          child:
+              _loading
+                  ? _buildLoader()
+                  : ElevatedButton(
+                    onPressed: _signIn,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
         ),
       ],
     );
@@ -803,7 +833,10 @@ class _LoginPageState extends State<Login> {
         // Show OTP input and Verify button when OTP was sent and email not yet verified
         if (_otpSent && !_emailVerified) ...[
           const SizedBox(height: 12),
-          const Text('Enter OTP', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text(
+            'Enter OTP',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -831,7 +864,10 @@ class _LoginPageState extends State<Login> {
                 onPressed: _verifyOtp,
                 child: const Text('Verify'),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -959,27 +995,28 @@ class _LoginPageState extends State<Login> {
               ),
             ],
           ),
-          child: _loading
-              ? _buildLoader()
-              : ElevatedButton(
-            onPressed: _createAccount,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: const Text(
-              'Create Account',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
+          child:
+              _loading
+                  ? _buildLoader()
+                  : ElevatedButton(
+                    onPressed: _createAccount,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
         ),
       ],
     );

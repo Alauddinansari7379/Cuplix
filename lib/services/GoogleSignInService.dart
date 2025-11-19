@@ -5,8 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:cuplix/utils/SharedPreferences.dart';
 import 'package:cuplix/dashboard/dashboard.dart';
 
-import '../apiInterface/APIHelper.dart';
-import '../apiInterface/ApiInterface.dart';
+ import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApIHelper.dart';
 
 class GoogleAuthClient {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email','profile']);

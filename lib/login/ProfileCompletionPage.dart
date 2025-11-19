@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../apiInterface/APIHelper.dart';
 import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApIHelper.dart';
 
 /// ProfileCompletionPage
 ///
@@ -41,8 +41,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
 
     _nameCtr = TextEditingController(text: p['name']?.toString() ?? '');
     _roleCtr = TextEditingController(text: p['role']?.toString() ?? '');
-    _avatarCtr =
-        TextEditingController(text: p['avatarUrl']?.toString() ?? '');
+    _avatarCtr = TextEditingController(text: p['avatarUrl']?.toString() ?? '');
     _mobileCtr = TextEditingController(text: p['mobile']?.toString() ?? '');
     // normalize date to yyyy-MM-dd if present (strip time)
     String dob = '';
@@ -51,16 +50,17 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
       dob = raw.split('T').first;
     }
     _dobCtr = TextEditingController(text: dob);
-    _ageCtr =
-        TextEditingController(text: p['age'] != null ? p['age'].toString() : '');
-    _religionCtr =
-        TextEditingController(text: p['religion']?.toString() ?? '');
+    _ageCtr = TextEditingController(
+      text: p['age'] != null ? p['age'].toString() : '',
+    );
+    _religionCtr = TextEditingController(text: p['religion']?.toString() ?? '');
     _religiosityScoreCtr = TextEditingController(
-        text: p['religiosityScore'] != null
-            ? p['religiosityScore'].toString()
-            : '');
-    _placeOfBirthCtr =
-        TextEditingController(text: p['placeOfBirth']?.toString() ?? '');
+      text:
+          p['religiosityScore'] != null ? p['religiosityScore'].toString() : '',
+    );
+    _placeOfBirthCtr = TextEditingController(
+      text: p['placeOfBirth']?.toString() ?? '',
+    );
     String journey = '';
     if (p['journeyStartDate'] != null) {
       final raw = p['journeyStartDate'].toString();
@@ -111,16 +111,28 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
     final body = <String, dynamic>{
       "name": _nameCtr.text.trim(),
       "role": _roleCtr.text.trim().isEmpty ? null : _roleCtr.text.trim(),
-      "avatarUrl": _avatarCtr.text.trim().isEmpty ? null : _avatarCtr.text.trim(),
+      "avatarUrl":
+          _avatarCtr.text.trim().isEmpty ? null : _avatarCtr.text.trim(),
       "mobile": _mobileCtr.text.trim(),
       "dateOfBirth": _dobCtr.text.trim().isEmpty ? null : _dobCtr.text.trim(),
-      "age": _ageCtr.text.trim().isEmpty ? null : int.tryParse(_ageCtr.text.trim()),
-      "religion": _religionCtr.text.trim().isEmpty ? null : _religionCtr.text.trim(),
-      "religiosityScore": _religiosityScoreCtr.text.trim().isEmpty
-          ? null
-          : int.tryParse(_religiosityScoreCtr.text.trim()),
-      "placeOfBirth": _placeOfBirthCtr.text.trim().isEmpty ? null : _placeOfBirthCtr.text.trim(),
-      "journeyStartDate": _journeyStartDateCtr.text.trim().isEmpty ? null : _journeyStartDateCtr.text.trim(),
+      "age":
+          _ageCtr.text.trim().isEmpty
+              ? null
+              : int.tryParse(_ageCtr.text.trim()),
+      "religion":
+          _religionCtr.text.trim().isEmpty ? null : _religionCtr.text.trim(),
+      "religiosityScore":
+          _religiosityScoreCtr.text.trim().isEmpty
+              ? null
+              : int.tryParse(_religiosityScoreCtr.text.trim()),
+      "placeOfBirth":
+          _placeOfBirthCtr.text.trim().isEmpty
+              ? null
+              : _placeOfBirthCtr.text.trim(),
+      "journeyStartDate":
+          _journeyStartDateCtr.text.trim().isEmpty
+              ? null
+              : _journeyStartDateCtr.text.trim(),
     };
 
     try {
@@ -143,12 +155,15 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
       } else {
         final err = res['error'] ?? 'Update failed';
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(err.toString())));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
     } finally {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -158,9 +173,7 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Complete Your Profile'),
-      ),
+      appBar: AppBar(title: const Text('Complete Your Profile')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -172,14 +185,20 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                 TextFormField(
                   controller: _nameCtr,
                   decoration: const InputDecoration(labelText: 'Full name'),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
+                  validator:
+                      (v) =>
+                          v == null || v.trim().isEmpty
+                              ? 'Name is required'
+                              : null,
                 ),
                 const SizedBox(height: 12),
 
                 // Role
                 TextFormField(
                   controller: _roleCtr,
-                  decoration: const InputDecoration(labelText: 'Role (e.g., partner)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Role (e.g., partner)',
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -199,7 +218,11 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                   controller: _mobileCtr,
                   decoration: const InputDecoration(labelText: 'Mobile'),
                   keyboardType: TextInputType.phone,
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Mobile is required' : null,
+                  validator:
+                      (v) =>
+                          v == null || v.trim().isEmpty
+                              ? 'Mobile is required'
+                              : null,
                 ),
                 const SizedBox(height: 12),
 
@@ -210,9 +233,15 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                       child: TextFormField(
                         controller: _dobCtr,
                         readOnly: true,
-                        decoration: const InputDecoration(labelText: 'Date of Birth'),
+                        decoration: const InputDecoration(
+                          labelText: 'Date of Birth',
+                        ),
                         onTap: () => _pickDate(_dobCtr),
-                        validator: (v) => v == null || v.trim().isEmpty ? 'DOB is required' : null,
+                        validator:
+                            (v) =>
+                                v == null || v.trim().isEmpty
+                                    ? 'DOB is required'
+                                    : null,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -238,7 +267,9 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                 // Religiosity score
                 TextFormField(
                   controller: _religiosityScoreCtr,
-                  decoration: const InputDecoration(labelText: 'Religiosity Score (numeric)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Religiosity Score (numeric)',
+                  ),
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 12),
@@ -246,7 +277,9 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                 // Place of birth
                 TextFormField(
                   controller: _placeOfBirthCtr,
-                  decoration: const InputDecoration(labelText: 'Place of Birth'),
+                  decoration: const InputDecoration(
+                    labelText: 'Place of Birth',
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -254,7 +287,9 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                 TextFormField(
                   controller: _journeyStartDateCtr,
                   readOnly: true,
-                  decoration: const InputDecoration(labelText: 'Journey Start Date'),
+                  decoration: const InputDecoration(
+                    labelText: 'Journey Start Date',
+                  ),
                   onTap: () => _pickDate(_journeyStartDateCtr),
                 ),
                 const SizedBox(height: 20),
@@ -263,18 +298,23 @@ class _ProfileCompletionPageState extends State<ProfileCompletionPage> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _saving ? null : _submit,
-                    child: _saving
-                        ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                        : const Text('Save Profile'),
+                    child:
+                        _saving
+                            ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text('Save Profile'),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: _saving ? null : () => Navigator.pop(context, false),
+                  onPressed:
+                      _saving ? null : () => Navigator.pop(context, false),
                   child: const Text('Skip for now'),
                 ),
               ],

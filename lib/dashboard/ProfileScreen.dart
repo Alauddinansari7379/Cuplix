@@ -9,8 +9,8 @@ import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../apiInterface/APIHelper.dart';
-import '../apiInterface/ApiInterface.dart';
+ import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApIHelper.dart';
 import '../utils/SharedPreferences.dart';
 import '../login/OnboardingRoleSelection.dart';
 import 'CoupleCalendarScreen.dart';
