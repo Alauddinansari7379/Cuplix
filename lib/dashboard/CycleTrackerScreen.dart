@@ -2,6 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../apiInterface/ApIHelper.dart';
+import '../apiInterface/ApiInterface.dart';
+import '../utils/SharedPreferences.dart';
+
+
 class CycleTrackerScreen extends StatefulWidget {
   const CycleTrackerScreen({Key? key}) : super(key: key);
 
@@ -20,11 +25,113 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
   DateTime? _lastPeriodStart;
   final DateFormat _displayFormat = DateFormat('dd-MM-yyyy');
 
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCycleTracking();
+  }
+
   @override
   void dispose() {
     _avgCycleController.dispose();
     _periodLengthController.dispose();
     super.dispose();
+  }
+
+  // -------- TOKEN FROM SHAREDPREFS --------
+  Future<String> _getAuthToken() async {
+    final token = await SharedPrefs.getAccessToken();
+    return token ?? '';
+  }
+
+  // -------- GET /cycle-tracking --------
+  Future<void> _fetchCycleTracking() async {
+    setState(() => _isLoading = true);
+
+    final token = await _getAuthToken();
+    if (!mounted) return;
+
+    final res = await ApiHelper.getWithAuth(
+      url: ApiInterface.getCycleTracking, // make sure this is defined
+      token: token,
+      context: context,
+      showLoader: false, // use only screen loader here
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (res['success'] == true) {
+      final data = res['data'] as Map<String, dynamic>;
+
+      setState(() {
+        _trackingEnabled = data['trackingEnabled'] ?? true;
+
+        _avgCycleController.text = (data['cycleLength'] ?? 28).toString();
+        _periodLengthController.text =
+            (data['periodLength'] ?? 5).toString();
+
+        final lastPeriodStr = data['lastPeriodStart'];
+        if (lastPeriodStr != null && lastPeriodStr.toString().isNotEmpty) {
+          _lastPeriodStart = DateTime.tryParse(lastPeriodStr.toString());
+        }
+      });
+    } else {
+      final error = res['error'] ?? 'Failed to load cycle data';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
+  // -------- PUT /cycle-tracking (Upsert) --------
+  Future<void> _upsertCycleTracking() async {
+    final token = await _getAuthToken();
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in again.')),
+      );
+      return;
+    }
+
+    final cycleLength =
+        int.tryParse(_avgCycleController.text.trim()) ?? 28;
+    final periodLength =
+        int.tryParse(_periodLengthController.text.trim()) ?? 5;
+
+    final Map<String, dynamic> body = {
+      "cycleLength": cycleLength,
+      "periodLength": periodLength,
+      "trackingEnabled": _trackingEnabled,
+    };
+
+    if (_lastPeriodStart != null) {
+      // Postman body in screenshot uses "2024-12-01"
+      body["lastPeriodStart"] =
+          DateFormat('yyyy-MM-dd').format(_lastPeriodStart!);
+    }
+
+    final res = await ApiHelper.putWithAuth(
+      url: ApiInterface.getCycleTracking,
+      token: token,
+      body: body,
+      context: context,
+      showLoader: true, // use overlay loader only while saving
+    );
+
+    if (res['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cycle information updated')),
+      );
+    } else {
+      final error =
+          res['error'] ?? 'Failed to update cycle information';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _pickLastPeriodDate() async {
@@ -42,10 +149,7 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
   }
 
   void _onSave() {
-    // For now just show a snackbar. You can hook this up to an API later.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cycle information saved')),
-    );
+    _upsertCycleTracking();
   }
 
   @override
@@ -65,8 +169,11 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
         iconTheme: const IconThemeData(color: Color(0xFF2C2139)),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+          padding:
+          const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -228,7 +335,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8F6F8),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0D6EA)),
+                          border: Border.all(
+                              color: const Color(0xFFE0D6EA)),
                         ),
                         child: Row(
                           children: [
@@ -236,7 +344,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                               child: Text(
                                 _lastPeriodStart == null
                                     ? 'dd-mm-yyyy'
-                                    : _displayFormat.format(_lastPeriodStart!),
+                                    : _displayFormat
+                                    .format(_lastPeriodStart!),
                                 style: TextStyle(
                                   color: _lastPeriodStart == null
                                       ? const Color(0xFF9A8EA0)
@@ -267,7 +376,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                       child: DecoratedBox(
                         decoration: const BoxDecoration(
                           gradient: gradient,
-                          borderRadius: BorderRadius.all(Radius.circular(14)),
+                          borderRadius:
+                          BorderRadius.all(Radius.circular(14)),
                         ),
                         child: ElevatedButton(
                           onPressed: _onSave,
@@ -298,9 +408,9 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: const [
                     Row(
-                      children: const [
+                      children: [
                         Icon(Icons.show_chart,
                             color: Color(0xFFaf57db), size: 24),
                         SizedBox(width: 8),
@@ -314,8 +424,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
+                    SizedBox(height: 8),
+                    Text(
                       'Each phase of your cycle brings different energies and '
                           'emotions. Understanding these phases can help you and '
                           'your partner navigate your relationship more harmoniously.',
@@ -325,8 +435,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const _PhaseCard(
+                    SizedBox(height: 16),
+                    _PhaseCard(
                       dotColor: Color(0xFFFF4C4C),
                       title: 'Menstrual Phase (Days 1–5)',
                       description:
@@ -334,8 +444,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                       tip:
                       'Focus on rest and gentle activities. Stay hydrated and eat iron-rich foods.',
                     ),
-                    const SizedBox(height: 10),
-                    const _PhaseCard(
+                    SizedBox(height: 10),
+                    _PhaseCard(
                       dotColor: Color(0xFFFF4DA6),
                       title: 'Follicular Phase (Days 6–14)',
                       description:
@@ -343,8 +453,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                       tip:
                       'Great time for starting new projects. Good for social activities and exercise.',
                     ),
-                    const SizedBox(height: 10),
-                    const _PhaseCard(
+                    SizedBox(height: 10),
+                    _PhaseCard(
                       dotColor: Color(0xFFFFC93A),
                       title: 'Ovulation Phase (Days 15–18)',
                       description:
@@ -352,8 +462,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                       tip:
                       'Optimal time for important conversations or intimate activities.',
                     ),
-                    const SizedBox(height: 10),
-                    const _PhaseCard(
+                    SizedBox(height: 10),
+                    _PhaseCard(
                       dotColor: Color(0xFFB071FF),
                       title: 'Luteal Phase (Days 19–28)',
                       description:

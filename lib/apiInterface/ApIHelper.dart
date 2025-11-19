@@ -151,5 +151,91 @@ class ApiHelper {
       return {'success': false, 'error': e.toString()};
     }
   }
+  // 🔹 PUT with Bearer token & optional loader
+  static Future<Map<String, dynamic>> putWithAuth({
+    required String url,
+    required String token,
+    required Map<String, dynamic> body,
+    BuildContext? context,
+    bool showLoader = false,
+  }) async {
+    try {
+      if (showLoader && context != null) ApiLoader.show(context);
+
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (showLoader && context != null) ApiLoader.hide();
+
+      final decoded = jsonDecode(response.body);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true, 'data': decoded};
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': 'Unauthorized. Please log in again.',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': decoded['message'] ?? 'Something went wrong',
+        };
+      }
+    } catch (e) {
+      if (showLoader && context != null) ApiLoader.hide();
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+  static Future<Map<String, dynamic>> postWithAuth({
+    required String url,
+    required String token,
+    required Map<String, dynamic> body,
+    BuildContext? context,
+    bool showLoader = false,
+  }) async {
+    try {
+      if (showLoader && context != null) ApiLoader.show(context);
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (showLoader && context != null) ApiLoader.hide();
+
+      final decoded = jsonDecode(response.body);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true, 'data': decoded};
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': 'Unauthorized. Please log in again.',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': decoded['message'] ?? 'Something went wrong',
+        };
+      }
+    } catch (e) {
+      if (showLoader && context != null) ApiLoader.hide();
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
 
 }

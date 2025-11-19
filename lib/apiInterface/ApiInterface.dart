@@ -8,8 +8,8 @@ class ApiInterface {
 //Google auth
   static const String authGoogle = "${baseUrl}auth/google";
   static const String authVerify = "${baseUrl}auth/verify";
-  
-  //Profile
   static const String profiles = "${baseUrl}profiles/me";
   static const String deletePersonalityProfile = "${baseUrl}personality-profiles/me";
+  static const String getCycleTracking = "${baseUrl}cycle-tracking";
+  static const String partnerConnections = "${baseUrl}partner-connections";
 }

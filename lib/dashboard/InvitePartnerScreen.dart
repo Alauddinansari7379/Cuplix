@@ -1,6 +1,9 @@
-import 'dart:math';
+import 'package:cuplix/apiInterface/ApiInterface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../apiInterface/ApIHelper.dart';
+import '../utils/SharedPreferences.dart';
 
 class InvitePartnerScreen extends StatefulWidget {
   const InvitePartnerScreen({Key? key}) : super(key: key);
@@ -12,6 +15,7 @@ class InvitePartnerScreen extends StatefulWidget {
 class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   String? _generatedCode;
   final TextEditingController _partnerCodeController = TextEditingController();
+  bool _isGenerating = false;
 
   @override
   void dispose() {
@@ -19,22 +23,109 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     super.dispose();
   }
 
-  // simple random 6-character code
-  String _createRandomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final rnd = Random();
-    return List.generate(6, (_) => chars[rnd.nextInt(chars.length)]).join();
+  // ------------ Helpers ------------
+
+  Future<String> _getAuthToken() async {
+    final token = await SharedPrefs.getAccessToken();
+    return token ?? '';
   }
 
-  void _onGenerateInvite() {
-    final code = _createRandomCode();
-    setState(() => _generatedCode = code);
+  bool get _hasCode =>
+      _generatedCode != null && _generatedCode!.trim().isNotEmpty;
 
-    Clipboard.setData(ClipboardData(text: code));
+  String get _shareMessage =>
+      'Here is my Cuplix invite code: $_generatedCode\n\nUse this to connect with me in the app.';
+
+  void _requireCodeFirst() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Invite code "$code" copied to clipboard')),
+      const SnackBar(content: Text('Generate your invite code first')),
     );
   }
+
+  Future<void> _copyShareMessage(String where) async {
+    await Clipboard.setData(ClipboardData(text: _shareMessage));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Invite message copied. Open $where and paste it to share.',
+        ),
+      ),
+    );
+  }
+
+  // ------------ Generate invite (API) ------------
+
+  Future<void> _onGenerateInvite() async {
+    if (_isGenerating) return;
+    setState(() => _isGenerating = true);
+
+    final token = await _getAuthToken();
+    if (token.isEmpty) {
+      setState(() => _isGenerating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in again')),
+      );
+      return;
+    }
+
+    final res = await ApiHelper.postWithAuth(
+      url: ApiInterface.partnerConnections,
+      token: token,
+      body: const {},
+      context: context,
+      showLoader: true,
+    );
+
+    if (!mounted) return;
+    setState(() => _isGenerating = false);
+
+    if (res['success'] == true) {
+      final data = res['data'] as Map<String, dynamic>;
+      final code = data['inviteCode']?.toString();
+
+      if (code != null && code.isNotEmpty) {
+        setState(() => _generatedCode = code);
+
+        Clipboard.setData(ClipboardData(text: code));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invite code "$code" copied to clipboard')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to get invite code')),
+        );
+      }
+    } else {
+      final error = res['error'] ?? 'Something went wrong';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
+  // ------------ Share actions (clipboard only) ------------
+
+  Future<void> _shareWhatsApp() async {
+    if (!_hasCode) return _requireCodeFirst();
+    await _copyShareMessage('WhatsApp');
+  }
+
+  Future<void> _shareEmail() async {
+    if (!_hasCode) return _requireCodeFirst();
+    await _copyShareMessage('your email app');
+  }
+
+  Future<void> _shareSms() async {
+    if (!_hasCode) return _requireCodeFirst();
+    await _copyShareMessage('your SMS app');
+  }
+
+  Future<void> _shareMore() async {
+    if (!_hasCode) return _requireCodeFirst();
+    await _copyShareMessage('any app');
+  }
+
+  // ------------ Connect with partner ------------
 
   void _onConnect() {
     final code = _partnerCodeController.text.trim();
@@ -45,13 +136,14 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       return;
     }
 
-    // TODO: call your backend connect-partner API with [code]
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Attempting to connect with code: $code')),
     );
   }
 
   bool get _canConnect => _partnerCodeController.text.trim().length >= 4;
+
+  // ------------ UI ------------
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +166,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Header
               const Icon(Icons.favorite_outline,
                   color: Color(0xFFaf57db), size: 40),
               const SizedBox(height: 10),
@@ -98,7 +189,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
               ),
               const SizedBox(height: 26),
 
-              // Share your invite code card
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,16 +198,14 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                         Container(
                           height: 44,
                           width: 44,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
                               colors: [Color(0xFFf5c2ff), Color(0xFFaf57db)],
                             ),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.person_add_alt_1,
-                            color: Colors.white,
-                          ),
+                          child: const Icon(Icons.person_add_alt_1,
+                              color: Colors.white),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -146,7 +234,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Generate button
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -156,7 +243,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                           borderRadius: BorderRadius.all(Radius.circular(24)),
                         ),
                         child: ElevatedButton(
-                          onPressed: _onGenerateInvite,
+                          onPressed: _isGenerating ? null : _onGenerateInvite,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -164,9 +251,11 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                               borderRadius: BorderRadius.circular(24),
                             ),
                           ),
-                          child: const Text(
-                            'Generate Invite Code',
-                            style: TextStyle(
+                          child: Text(
+                            _isGenerating
+                                ? 'Generating...'
+                                : 'Generate Invite Code',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
@@ -192,7 +281,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8F6F8),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0D6EA)),
+                          border: Border.all(color: Color(0xFFE0D6EA)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -202,15 +291,14 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 3,
-                                fontSize: 16,
+                                fontSize: 20,
                               ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.copy, size: 18),
                               onPressed: () {
                                 Clipboard.setData(
-                                  ClipboardData(text: _generatedCode!),
-                                );
+                                    ClipboardData(text: _generatedCode!));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Code copied to clipboard'),
@@ -221,6 +309,77 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Color(0xFFE3D7F0)),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Share via:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9A8EA0),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _shareWhatsApp,
+                              icon: const Icon(Icons.whatshot),
+                              label: const Text('WhatsApp'),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _shareEmail,
+                              icon: const Icon(Icons.email_outlined),
+                              label: const Text('Email'),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _shareSms,
+                              icon: const Icon(Icons.sms_outlined),
+                              label: const Text('SMS'),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _shareMore,
+                              icon: const Icon(Icons.share_outlined),
+                              label: const Text('More'),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ],
                 ),
@@ -228,7 +387,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
 
               const SizedBox(height: 24),
 
-              // OR divider
               Row(
                 children: const [
                   Expanded(child: Divider(color: Color(0xFFE3D7F0))),
@@ -248,7 +406,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
 
               const SizedBox(height: 24),
 
-              // Enter partner's code card
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,16 +415,14 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                         Container(
                           height: 44,
                           width: 44,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
                               colors: [Color(0xFFB9E4FF), Color(0xFFB06BF3)],
                             ),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.favorite_border,
-                            color: Colors.white,
-                          ),
+                          child: const Icon(Icons.favorite_border,
+                              color: Colors.white),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -327,9 +482,10 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                         SizedBox(
                           height: 44,
                           child: DecoratedBox(
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               gradient: gradient,
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius:
+                              BorderRadius.all(Radius.circular(24)),
                             ),
                             child: ElevatedButton(
                               onPressed: _canConnect ? _onConnect : null,
@@ -338,8 +494,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                                 shadowColor: Colors.transparent,
                                 disabledForegroundColor:
                                 Colors.white.withOpacity(0.7),
-                                disabledBackgroundColor:
-                                Colors.transparent,
+                                disabledBackgroundColor: Colors.transparent,
                                 padding:
                                 const EdgeInsets.symmetric(horizontal: 16),
                                 shape: RoundedRectangleBorder(
