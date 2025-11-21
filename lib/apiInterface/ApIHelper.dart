@@ -236,6 +236,20 @@ class ApiHelper {
       return {'success': false, 'error': e.toString()};
     }
   }
-
+  /// Convenience wrapper so you can call `ApiHelper.deleteWithAuth(...)`
+  /// (used by Dashboard disconnect) while still using the same core delete logic.
+  static Future<Map<String, dynamic>> deleteWithAuth({
+    required String url,
+    required String token,
+    BuildContext? context,
+    bool showLoader = false,
+  }) {
+    return delete(
+      url: url,
+      token: token,
+      context: context,
+      showLoader: showLoader,
+    );
+  }
 
 }

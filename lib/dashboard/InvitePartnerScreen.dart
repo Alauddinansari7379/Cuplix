@@ -16,6 +16,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   String? _generatedCode;
   final TextEditingController _partnerCodeController = TextEditingController();
   bool _isGenerating = false;
+  bool _isConnecting = false; // <-- added
 
   @override
   void dispose() {
@@ -62,9 +63,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     final token = await _getAuthToken();
     if (token.isEmpty) {
       setState(() => _isGenerating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in again')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please log in again')));
       return;
     }
 
@@ -97,9 +98,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       }
     } else {
       final error = res['error'] ?? 'Something went wrong';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -125,9 +126,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     await _copyShareMessage('any app');
   }
 
-  // ------------ Connect with partner ------------
+  // ------------ Connect with partner (CALL /accept API) ------------
 
-  void _onConnect() {
+  Future<void> _onConnect() async {
     final code = _partnerCodeController.text.trim();
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,12 +137,64 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Attempting to connect with code: $code')),
+    if (_isConnecting) return;
+    setState(() => _isConnecting = true);
+
+    final token = await _getAuthToken();
+    if (token.isEmpty) {
+      setState(() => _isConnecting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please log in again')));
+      return;
+    }
+
+    final res = await ApiHelper.postWithAuth(
+      url: '${ApiInterface.partnerConnections}/accept',
+      token: token,
+      body: {"inviteCode": code},
+      context: context,
+      showLoader: true,
     );
+
+    if (!mounted) return;
+    setState(() => _isConnecting = false);
+
+    if (res['success'] == true) {
+      final data = res['data'] as Map<String, dynamic>?;
+
+      // try to get partner details from response
+      Map<String, dynamic>? partner =
+          (data?['partner'] ?? data?['user2'] ?? data?['user1'])
+              as Map<String, dynamic>?;
+
+      final profile = partner?['profile'] as Map<String, dynamic>?;
+
+      final partnerName = profile?['name']?.toString() ?? 'Alex Doe';
+      final partnerRole = profile?['role']?.toString() ?? 'husband';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are now connected with your partner!'),
+        ),
+      );
+
+      // return info to Dashboard
+      Navigator.pop(context, {
+        'connected': true,
+        'partnerName': partnerName,
+        'partnerRole': partnerRole,
+      });
+    } else {
+      final error = res['error'] ?? 'Unable to connect with this invite code';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
-  bool get _canConnect => _partnerCodeController.text.trim().length >= 4;
+  bool get _canConnect =>
+      _partnerCodeController.text.trim().length >= 4 && !_isConnecting;
 
   // ------------ UI ------------
 
@@ -166,8 +219,11 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.favorite_outline,
-                  color: Color(0xFFaf57db), size: 40),
+              const Icon(
+                Icons.favorite_outline,
+                color: Color(0xFFaf57db),
+                size: 40,
+              ),
               const SizedBox(height: 10),
               const Text(
                 'Connect with Your Partner',
@@ -182,10 +238,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
               const Text(
                 'Grow your relationship together',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF9A8EA0),
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Color(0xFF9A8EA0), fontSize: 14),
               ),
               const SizedBox(height: 26),
 
@@ -204,8 +257,10 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                             ),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.person_add_alt_1,
-                              color: Colors.white),
+                          child: const Icon(
+                            Icons.person_add_alt_1,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -277,11 +332,13 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8F6F8),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Color(0xFFE0D6EA)),
+                          border: Border.all(color: const Color(0xFFE0D6EA)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -298,14 +355,15 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                               icon: const Icon(Icons.copy, size: 18),
                               onPressed: () {
                                 Clipboard.setData(
-                                    ClipboardData(text: _generatedCode!));
+                                  ClipboardData(text: _generatedCode!),
+                                );
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Code copied to clipboard'),
                                   ),
                                 );
                               },
-                            )
+                            ),
                           ],
                         ),
                       ),
@@ -421,8 +479,10 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                             ),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.favorite_border,
-                              color: Colors.white),
+                          child: const Icon(
+                            Icons.favorite_border,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -470,7 +530,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                               filled: true,
                               fillColor: const Color(0xFFF8F6F8),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 14),
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
                                 borderSide: BorderSide.none,
@@ -484,19 +546,21 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                           child: DecoratedBox(
                             decoration: const BoxDecoration(
                               gradient: gradient,
-                              borderRadius:
-                              BorderRadius.all(Radius.circular(24)),
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(24),
+                              ),
                             ),
                             child: ElevatedButton(
                               onPressed: _canConnect ? _onConnect : null,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                disabledForegroundColor:
-                                Colors.white.withOpacity(0.7),
+                                disabledForegroundColor: Colors.white
+                                    .withOpacity(0.7),
                                 disabledBackgroundColor: Colors.transparent,
-                                padding:
-                                const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(24),
                                 ),
@@ -538,7 +602,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
             color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 5),
-          )
+          ),
         ],
       ),
       child: child,
