@@ -899,6 +899,7 @@ class _DashboardContent extends StatelessWidget {
                         ),
                       );
                     },
+
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
