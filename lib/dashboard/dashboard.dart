@@ -2,6 +2,7 @@ import 'package:cuplix/dashboard/JournalScreen.dart';
 import 'package:cuplix/dashboard/MoreScreen.dart';
 import 'package:cuplix/dashboard/ProfileScreen.dart';
 import 'package:cuplix/dashboard/profile_checker.dart';
+import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
 import 'package:flutter/material.dart';
 
 import 'ChatScreen.dart';
@@ -272,7 +273,13 @@ class _DashboardContent extends StatelessWidget {
                       ),
                     ),
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => UpgradeToCuplixScreen()),
+                        );
+
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
@@ -879,7 +886,10 @@ class _DashboardContent extends StatelessWidget {
                     subtitle:
                         'Send a personal invite so your partner can join you',
                     onTap: () {
-                      // invite flow
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => InvitePartnerScreen()),
+                      );
                     },
                   ),
                   const SizedBox(height: 10),
