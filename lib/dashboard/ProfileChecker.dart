@@ -95,6 +95,7 @@ class ProfileChecker {
     }
   }
 
+
   /// Checks for incomplete profile and optionally prompts user.
   static Future<bool?> checkAndPrompt({
     required BuildContext context,
