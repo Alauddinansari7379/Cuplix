@@ -6,6 +6,7 @@ import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
 import 'package:flutter/material.dart';
 
 import 'ChatScreen.dart';
+import 'InvitePartnerScreen.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
