@@ -183,7 +183,7 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
                 TextField(
                   controller: _nameController,
                   decoration: InputDecoration(
-                    hintText: 'eg. Somenath',
+                    hintText: 'eg. Xyz',
                     filled: true,
                     fillColor: const Color(0xFFF8F6F8),
                     contentPadding: const EdgeInsets.symmetric(

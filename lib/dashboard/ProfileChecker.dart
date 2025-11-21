@@ -6,6 +6,7 @@ import 'package:fluttertoast/fluttertoast.dart';
  import '../apiInterface/ApiInterface.dart';
  import '../apiInterface/ApIHelper.dart';
 import '../login/Login.dart';
+import '../login/OnboardingRoleSelection.dart';
 import '../login/ProfileCompletionPage.dart';
 
 class ProfileChecker {
@@ -19,7 +20,7 @@ class ProfileChecker {
     try {
       final token = await SharedPrefs.getAccessToken();
       debugPrint(
-        'ProfileChecker.fetchProfile -> token: ${token == null ? 'null' : '***masked***'}',
+        'ProfileChecker.fetchProfile -> token: ${token ?? 'null'}',
       );
 
       if (token == null || token.isEmpty) {
@@ -102,14 +103,17 @@ class ProfileChecker {
   }) async {
     try {
       final avatar = (profile['avatarUrl'] ?? '').toString().trim();
-      final religion = (profile['religion'] ?? '').toString().trim();
+      final name = (profile['name'] ?? '').toString().trim();
       final dateOfBirth = (profile['dateOfBirth'] ?? '').toString().trim();
       final mobile = (profile['mobile'] ?? '').toString().trim();
+
+      await SharedPrefs.setName(name);
+      await SharedPrefs.setNumber(mobile);
 
       bool missing = avatar.isEmpty || avatar.toLowerCase() == 'null';
       if (checkAll) {
         missing = missing ||
-            religion.isEmpty ||
+            name.isEmpty ||
             dateOfBirth.isEmpty ||
             mobile.isEmpty;
       }
@@ -147,13 +151,18 @@ class ProfileChecker {
         final updated = await Navigator.push<bool?>(
           context,
           MaterialPageRoute(
-            builder: (_) => ProfileCompletionPage(existingProfile: profile),
+            builder: (_) => OnboardingRoleSelection(
+              userEmail: profile['email'] ?? '',
+            ),
           ),
         );
-        debugPrint(
-            'ProfileChecker.checkAndPrompt -> ProfileCompletionPage returned: $updated');
+
+        debugPrint('Profile updated? $updated');
         return updated ?? false;
-      } else {
+      }
+
+
+      else {
         debugPrint('ProfileChecker.checkAndPrompt -> user chose Later');
         return false;
       }

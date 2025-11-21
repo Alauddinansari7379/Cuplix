@@ -1,10 +1,11 @@
 import 'package:cuplix/dashboard/JournalScreen.dart';
 import 'package:cuplix/dashboard/MoreScreen.dart';
 import 'package:cuplix/dashboard/ProfileScreen.dart';
-import 'package:cuplix/dashboard/profile_checker.dart';
+import 'package:cuplix/dashboard/ProfileChecker.dart';
 import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
 import 'package:flutter/material.dart';
 
+import '../utils/SharedPreferences.dart';
 import 'ChatScreen.dart';
 import 'InvitePartnerScreen.dart';
 
@@ -17,6 +18,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   int _currentIndex = 0;
+  String _userName = "User";
 
   bool _loading = false;
   String? _error;
@@ -25,16 +27,12 @@ class _DashboardState extends State<Dashboard> {
   String _mobile = '';
   String _avatarUrl = '';
   bool _profilePromptShown = false;
+  bool _loadingName = false;
 
   // Pages in bottom navigation
   late final List<Widget> _pages = <Widget>[
-    _DashboardContent(
-    ),
-    const ChatScreen(
-      partnerName: 'Partner',
-      partnerInitial: 'P',
-      isConnected: false,
-    ),
+    _DashboardContent(userName: _userName),
+    const ChatScreen(),
     const JournalScreen(), // 👈 Journal screen added
     const ProfileScreen(), // 👈 ProfileScreen screen added
     const MoreScreen(), // 👈 MoreScreen screen added
@@ -45,7 +43,6 @@ class _DashboardState extends State<Dashboard> {
     super.initState();
     _loadProfile();
   }
-
   Future<void> _loadProfile() async {
     try {
       setState(() {
@@ -57,6 +54,12 @@ class _DashboardState extends State<Dashboard> {
         context: context,
         showLoader: false,
       );
+
+      //Fetch Name
+      final name = await SharedPrefs.getName();
+      setState(() {
+        _userName = name ?? 'User';
+      });
 
       if (!mounted) return;
 
@@ -102,15 +105,11 @@ class _DashboardState extends State<Dashboard> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_error != null) {
-      return Scaffold(
-        body: Center(child: Text(_error!)),
-      );
+      return Scaffold(body: Center(child: Text(_error!)));
     }
 
     return Scaffold(
@@ -155,7 +154,9 @@ class _NavItem {
 
 /// ---------- Dashboard content widget ----------
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent();
+  final String userName;
+
+  const _DashboardContent({required this.userName, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -175,13 +176,15 @@ class _DashboardContent extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Welcome back, Alauddin Ansari! 👋',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    'Welcome back, $userName 👋',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                // small avatar / placeholder
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: Colors.purple.shade50,
@@ -277,9 +280,10 @@ class _DashboardContent extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => UpgradeToCuplixScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => UpgradeToCuplixScreen(),
+                          ),
                         );
-
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
@@ -889,7 +893,9 @@ class _DashboardContent extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => InvitePartnerScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => InvitePartnerScreen(),
+                        ),
                       );
                     },
                   ),

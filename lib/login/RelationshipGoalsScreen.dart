@@ -76,57 +76,6 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
 
   /// Build final payload: prefer explicit constructor fields,
   /// fallback to previousAnswers map when explicit is null.
-  Map<String, dynamic> _buildPayload() {
-    final prev = widget.previousAnswers ?? <String, dynamic>{};
-
-    String? mobile = widget.mobile ?? (prev['mobile'] as String?);
-    String? dob = widget.dateOfBirth ?? (prev['dateOfBirth'] as String?);
-    int? age = widget.age ??
-        (prev['age'] is int ? prev['age'] as int : null) ??
-        _computeAgeFromIso(dob);
-    String? religion = widget.religion ?? (prev['religion'] as String?);
-    int? religiosity = widget.religiosityScore ??
-        (prev['religiosity'] is int
-            ? prev['religiosity'] as int
-            : (prev['religiosity'] is double
-            ? (prev['religiosity'] as double).round()
-            : null));
-    String? placeOfBirth =
-        widget.placeOfBirth ?? (prev['placeOfBirth'] as String?);
-    String? journeyStart = widget.journeyStartDate ??
-        (prev['togetherSince'] as String?) ??
-        (prev['journeyStartDate'] as String?);
-    String? avatarUrl = widget.avatarUrl ?? (prev['avatarUrl'] as String?);
-
-    // ensure dates are ISO yyyy-MM-dd (if they parse-able)
-    final formattedDob = _formatIso(dob);
-    final formattedJourney = _formatIso(journeyStart);
-
-    final payload = <String, dynamic>{
-      "name": widget.name,
-      "role": widget.role,
-      "avatarUrl": avatarUrl,
-      "mobile": (mobile == null || (mobile as String).isEmpty) ? null : mobile,
-      "dateOfBirth": formattedDob,
-      "age": age,
-      "religion": religion,
-      "religiosityScore": religiosity,
-      "placeOfBirth": placeOfBirth,
-      "journeyStartDate": formattedJourney,
-      // additional collected answers
-      "comfortZones": prev['comfortZones'],
-      "emotionalNeeds": prev['emotionalNeeds'],
-      "expectations": prev['expectations'],
-      "communicationStyle": prev['communicationStyle'],
-      "loveLanguage": prev['loveLanguage'],
-      "relationshipGoals": _selectedIndices.map((i) => _goals[i]).toList(),
-      "email": widget.email,
-    };
-
-    // remove nulls to keep payload clean
-    payload.removeWhere((k, v) => v == null);
-    return payload;
-  }
 
   int? _computeAgeFromIso(String? isoDate) {
     if (isoDate == null || isoDate.isEmpty) return null;
@@ -154,31 +103,13 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
     }
   }
 
-  /// Try to obtain auth token from SharedPreferences first (SharedPrefs),
-  /// then fall back to FlutterSecureStorage keys.
-  Future<String?> _getAuthToken() async {
-    try {
-      // try shared_prefs helper (if present)
-      final spToken = await SharedPrefs.getAccessToken();
-      if (spToken != null && spToken.isNotEmpty) return spToken;
-    } catch (_) {
-      // ignore - helper might not exist or fail
-    }
 
-    // check common keys in secure storage (several names to be safe)
-    try {
-      final keysToTry = ['user_token', 'auth_token', 'access_token', 'token'];
-      for (final key in keysToTry) {
-        final v = await _storage.read(key: key);
-        if (v != null && v.isNotEmpty) return v;
-      }
-    } catch (_) {
-      // ignore storage errors
-    }
 
-    return null;
-  }
 
+// developer-provided demo image path (used as fallback)
+  static const String kDemoAvatarPath = '/mnt/data/a59e40d7-3ca9-4f3e-8b88-78314a315a5b.jpeg';
+
+// ------------------------- onCompleteSetup -------------------------
   Future<void> _onCompleteSetup() async {
     if (_selectedIndices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,22 +120,19 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
 
     setState(() => _loading = true);
 
-    final payload = _buildPayload();
+    final payload = await _buildPayload();
 
-    // Construct profiles endpoint. ApiInterface has baseUrl; append 'profiles'
+    // Construct profiles endpoint. Ensure trailing slash if your API expects it.
     final String profilesUrl = '${ApiInterface.baseUrl}profiles';
-
-    final token = await _getAuthToken();
-
+    final token = await SharedPrefs.getAccessToken();
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
     if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
 
-    // debug print (ignore in release)
-    // ignore: avoid_print
-    print('Posting to $profilesUrl payload: $payload headers: $headers');
+    // debug print (useful while developing)
+    debugPrint('Posting to $profilesUrl payload: $payload headers: $headers');
 
     try {
       final resp = await http.post(
@@ -215,7 +143,7 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
 
       setState(() => _loading = false);
 
-      // attempt to decode body safely
+      // try to decode body safely
       Map<String, dynamic>? decoded;
       try {
         decoded = resp.body.isNotEmpty ? jsonDecode(resp.body) as Map<String, dynamic> : null;
@@ -224,8 +152,9 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
       }
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        // optionally save returned profile or tokens here if server returns them
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile created/updated successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile created/updated successfully')),
+        );
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const Dashboard()));
         return;
@@ -236,13 +165,25 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unauthorized — please sign in again.')),
         );
-        // clear saved tokens from both storage places (best-effort)
+
+        // Best-effort clear saved session data (SharedPrefs + secure storage)
         try {
           await SharedPrefs.clearAll();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Error clearing SharedPrefs: $e');
+        }
+
+        // if you have flutter_secure_storage instance named _storage, try to clear it
         try {
-          await _storage.deleteAll();
-        } catch (_) {}
+          // ignore: prefer_final_locals
+          var storage = (this is State) ? (this as dynamic)._storage : null;
+          if (storage != null) {
+            await storage.deleteAll();
+          }
+        } catch (_) {
+          // ignore if storage isn't available in this class
+        }
+
         return;
       }
 
@@ -255,6 +196,62 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
     }
+  }
+
+// ------------------------- buildPayload -------------------------
+  Future<Map<String, dynamic>> _buildPayload() async {
+    final prev = widget.previousAnswers ?? <String, dynamic>{};
+
+    String? mobile = widget.mobile ?? (prev['mobile'] as String?);
+    String? dob = widget.dateOfBirth ?? (prev['dateOfBirth'] as String?);
+
+    int? age = widget.age ??
+        (prev['age'] is int ? prev['age'] as int : null) ??
+        _computeAgeFromIso(dob);
+
+    String? religion = widget.religion ?? (prev['religion'] as String?);
+
+    int? religiosity = widget.religiosityScore ??
+        (prev['religiosity'] is int
+            ? prev['religiosity'] as int
+            : (prev['religiosity'] is double ? (prev['religiosity'] as double).round() : null));
+
+    String? placeOfBirth = widget.placeOfBirth ?? (prev['placeOfBirth'] as String?);
+    String? journeyStart = widget.journeyStartDate ?? (prev['togetherSince'] as String?) ?? (prev['journeyStartDate'] as String?);
+    String? avatarUrl = widget.avatarUrl ?? (prev['avatarUrl'] as String?);
+
+    // use developer demo path as fallback avatar only for development/testing
+    avatarUrl ??= kDemoAvatarPath;
+
+    // ensure dates are ISO yyyy-MM-dd if parseable
+    final formattedDob = _formatIso(dob);
+    final formattedJourney = _formatIso(journeyStart);
+
+    // ---------------- construct payload ----------------
+    final payload = <String, dynamic>{
+      "name": widget.name,
+      "role": widget.role,
+      "avatarUrl": avatarUrl,
+      "mobile": mobile?.toString(),
+      "dateOfBirth": formattedDob,
+      "age": age,
+      "religion": religion,
+      "religiosityScore": religiosity,
+      "placeOfBirth": placeOfBirth,
+      "journeyStartDate": formattedJourney,
+      "comfortZones": prev['comfortZones'],
+      "emotionalNeeds": prev['emotionalNeeds'],
+      "expectations": prev['expectations'],
+      "communicationStyle": prev['communicationStyle'],
+      "loveLanguage": prev['loveLanguage'],
+      // "relationshipGoals": _selectedIndices.map((i) => _goals[i]).toList(),
+      // "email": email,
+    };
+
+    // remove null values so server receives a clean payload
+    payload.removeWhere((k, v) => v == null);
+
+    return payload;
   }
 
   @override
