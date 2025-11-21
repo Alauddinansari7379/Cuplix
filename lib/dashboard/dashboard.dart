@@ -1,9 +1,12 @@
 import 'package:cuplix/dashboard/JournalScreen.dart';
 import 'package:cuplix/dashboard/MoreScreen.dart';
 import 'package:cuplix/dashboard/ProfileScreen.dart';
+import 'package:cuplix/dashboard/profile_checker.dart';
+import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
 import 'package:flutter/material.dart';
 
 import 'ChatScreen.dart';
+import 'InvitePartnerScreen.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -15,9 +18,18 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   int _currentIndex = 0;
 
-  // simple content for tabs (ChatScreen is used in-place)
-  final List<Widget> _pages = <Widget>[
-    const _DashboardContent(),
+  bool _loading = false;
+  String? _error;
+  String _name = '';
+  String _email = '';
+  String _mobile = '';
+  String _avatarUrl = '';
+  bool _profilePromptShown = false;
+
+  // Pages in bottom navigation
+  late final List<Widget> _pages = <Widget>[
+    _DashboardContent(
+    ),
     const ChatScreen(
       partnerName: 'Partner',
       partnerInitial: 'P',
@@ -29,7 +41,78 @@ class _DashboardState extends State<Dashboard> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      final profile = await ProfileChecker.fetchProfile(
+        context: context,
+        showLoader: false,
+      );
+
+      if (!mounted) return;
+
+      if (profile == null) {
+        setState(() {
+          _loading = false;
+          _error = 'Failed to load profile data.';
+        });
+        return;
+      }
+
+      setState(() {
+        _name = profile['name'] ?? 'User';
+        _email = profile['email'] ?? '';
+        _mobile = profile['mobile'] ?? '';
+        _avatarUrl = profile['avatarUrl'] ?? '';
+        _loading = false;
+      });
+
+      // Show popup once if profile incomplete
+      if (!_profilePromptShown) {
+        _profilePromptShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          final updated = await ProfileChecker.checkAndPrompt(
+            context: context,
+            profile: profile,
+            checkAll: true,
+          );
+          if (updated == true && mounted) {
+            _loadProfile(); // reload after update
+          }
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Error loading profile: $e';
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(child: Text(_error!)),
+      );
+    }
+
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: _buildBottomNav(),
@@ -191,7 +274,13 @@ class _DashboardContent extends StatelessWidget {
                       ),
                     ),
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => UpgradeToCuplixScreen()),
+                        );
+
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
@@ -798,7 +887,10 @@ class _DashboardContent extends StatelessWidget {
                     subtitle:
                         'Send a personal invite so your partner can join you',
                     onTap: () {
-                      // invite flow
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => InvitePartnerScreen()),
+                      );
                     },
                   ),
                   const SizedBox(height: 10),
