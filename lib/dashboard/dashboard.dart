@@ -45,6 +45,7 @@ class _DashboardState extends State<Dashboard> {
       _NavItem(icon: Icons.menu, label: 'More'),
     ];
 
+
     return BottomNavigationBar(
       currentIndex: _currentIndex,
       onTap: (i) => setState(() => _currentIndex = i),
