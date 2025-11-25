@@ -1,9 +1,12 @@
 // lib/chat/chat_screen.dart
-import 'package:flutter/material.dart';
-import 'package:cuplix/apiInterface/ApiInterface.dart';
-import 'package:cuplix/utils/SharedPreferences.dart';
 
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../apiInterface/ApIHelper.dart';
+import '../apiInterface/ApiInterface.dart';
+import '../utils/SharedPreferences.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -12,20 +15,47 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+class _ChatMessage {
+  String id;
+  final String? clientMessageId;
+  final String text;
+  final bool isMe;
+  final String messageType;
+  final String? mediaUrl;
+  String status; // sent / delivered / read
+  final DateTime time;
+
+  _ChatMessage({
+    required this.id,
+    required this.clientMessageId,
+    required this.text,
+    required this.isMe,
+    required this.messageType,
+    required this.mediaUrl,
+    required this.status,
+    required this.time,
+  });
+}
+
 class _ChatScreenState extends State<ChatScreen> {
-  // ---- partner connection state ----
-  bool _loadingConnection = false;
-  bool _isConnected = false;
-
-  String _partnerName = 'Partner';
-  String? _partnerAvatarUrl;
-
-  String get _partnerInitial =>
-      _partnerName.isNotEmpty ? _partnerName[0].toUpperCase() : 'P';
-
-  // ---- chat state ----
   final TextEditingController _textController = TextEditingController();
   final List<_ChatMessage> _messages = [];
+
+  // NEW: controller so we can scroll to bottom
+  final ScrollController _scrollController = ScrollController();
+
+  bool _loadingConnection = false;
+  bool _isConnected = false;
+  bool _partnerTyping = false;
+  bool _partnerOnline = false;
+
+  String? _partnerId;
+  String? _currentUserId;
+  String _partnerName = "Partner";
+  String? _partnerAvatarUrl;
+
+  IO.Socket? _socket;
+  Timer? typingTimer;
 
   @override
   void initState() {
@@ -35,107 +65,286 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _socket?.disconnect();
+    _socket?.dispose();
     _textController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
+  // Helper: always scroll list to bottom (last message)
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  // ---------------------------------------------------
+  // 1️⃣ LOAD PARTNER CONNECTION
+  // ---------------------------------------------------
   Future<void> _fetchPartnerConnection() async {
     setState(() => _loadingConnection = true);
 
-    try {
-      final String? token = await SharedPrefs.getAccessToken();
+    final token = await SharedPrefs.getAccessToken();
+    if (token == null) return;
 
-      if (token == null) {
-        setState(() {
-          _loadingConnection = false;
-          _isConnected = false;
-        });
-        return;
+    final res = await ApiHelper.getWithAuth(
+      url: ApiInterface.partnerConnectionsMe,
+      token: token,
+      context: context,
+      showLoader: false,
+    );
+
+    if (!mounted) return;
+    setState(() => _loadingConnection = false);
+
+    if (res["success"] != true || res["data"] == null) return;
+
+    final data = res["data"];
+
+    // Backend: user1 = partner, user2 = me
+    final partnerProfile = data["user1"]["profile"];
+
+    _partnerId = data["user1Id"]?.toString();
+    _currentUserId = data["user2Id"]?.toString();
+    _partnerName = partnerProfile["name"] ?? "Partner";
+    _partnerAvatarUrl = partnerProfile["avatar"];
+
+    setState(() => _isConnected = true);
+
+    _connectSocket(token);
+    _loadMessageHistory(token);
+  }
+
+  // ---------------------------------------------------
+  // 2️⃣ SOCKET CONNECTION
+  // ---------------------------------------------------
+  void _connectSocket(String token) {
+    const socketUrl = "https://api.cuplix.in/partner-chat";
+
+    _socket = IO.io(
+      socketUrl,
+      {
+        'transports': ['websocket', 'polling'],
+        'auth': {'token': token},
+        'extraHeaders': {'Authorization': 'Bearer $token'},
+        'reconnection': true,
+      },
+    );
+
+    _socket!.on('connect', (_) {
+      debugPrint("🔌 Socket Connected");
+      if (_partnerId != null) {
+        _socket!.emit("join-room", {"partnerId": _partnerId});
       }
+    });
 
-      final res = await ApiHelper.getWithAuth(
-        url: ApiInterface.partnerConnectionsMe,
-        token: token,
-        context: context,
-        showLoader: false,
+    _socket!.on("joined-room", (data) {
+      setState(() => _partnerOnline = data["isPartnerOnline"] ?? false);
+    });
+
+    _socket!.on("partner-online", (_) {
+      setState(() => _partnerOnline = true);
+    });
+
+    _socket!.on("partner-offline", (_) {
+      setState(() => _partnerOnline = false);
+    });
+
+    _socket!.on("partner-typing", (data) {
+      setState(() => _partnerTyping = data["isTyping"]);
+    });
+
+    _socket!.on("receive-message", _handleIncomingMessage);
+
+    _socket!.on("message-delivered", (data) {
+      final index = _messages.indexWhere(
+            (m) => m.clientMessageId == data["clientMessageId"],
       );
-
-      if (!mounted) return;
-
-      if (res['success'] != true) {
+      if (index != -1) {
         setState(() {
-          _loadingConnection = false;
-          _isConnected = false;
+          _messages[index].id = data["messageId"];
+          _messages[index].status = "delivered";
         });
-        return;
+        _scrollToBottom();
       }
+    });
 
-      final data = res['data'];
-
-      // If API returns `null` => not connected
-      if (data == null) {
-        setState(() {
-          _loadingConnection = false;
-          _isConnected = false;
-        });
-        return;
-      }
-
-      // 🔹 Backend guarantees that for `/me`
-      //     the OTHER person is always in `user1`.
-      //    (As per your screenshot)
-      Map<String, dynamic>? partnerProfile =
-      (data['user1'] ?? const {})['profile'];
-
-      // Fallback to user2.profile if needed
-      partnerProfile ??= (data['user2'] ?? const {})['profile'];
-
-      final String name =
-      (partnerProfile?['name']?.toString().trim().isNotEmpty ?? false)
-          ? partnerProfile!['name'].toString()
-          : 'Partner';
-
-      final String? avatarUrl =
-      (partnerProfile?['avatarUrl']?.toString().trim().isNotEmpty ?? false)
-          ? partnerProfile!['avatarUrl'].toString()
-          : null;
-
+    _socket!.on("messages-read", (data) {
+      final ids = List<String>.from(data["messageIds"]);
       setState(() {
-        _loadingConnection = false;
-        _isConnected = true;
-        _partnerName = name;
-        _partnerAvatarUrl = avatarUrl;
+        for (var m in _messages) {
+          if (ids.contains(m.id)) {
+            m.status = "read";
+          }
+        }
       });
-    } catch (_) {
-      if (!mounted) return;
+    });
+  }
+
+  // ---------------------------------------------------
+  // 3️⃣ FETCH MESSAGE HISTORY
+  // ---------------------------------------------------
+
+  Future<void> _loadMessageHistory(String token) async {
+    if (_partnerId == null) return;
+
+    final url =
+        "https://api.cuplix.in/api/partner-messages/history?partnerId=$_partnerId";
+
+    final res = await ApiHelper.getWithAuth(
+      url: url,
+      token: token,
+      context: context,
+    );
+
+    if (res["success"] != true || res["data"] == null) return;
+
+    // Safely read list of raw messages
+    final data = res["data"] as Map<String, dynamic>;
+    final rawList = (data["messages"] as List?) ?? [];
+
+    // Build a *local* list first
+    final List<_ChatMessage> loaded = [];
+    for (final raw in rawList) {
+      final m = raw as Map<String, dynamic>;
+      final senderId = m["senderId"]?.toString();
+
+      loaded.add(
+        _ChatMessage(
+          id: (m["id"] ?? m["_id"]).toString(),
+          clientMessageId: m["clientMessageId"],
+          text: m["content"] ?? "",
+          isMe: senderId != _partnerId,
+          messageType: m["messageType"] ?? "text",
+          mediaUrl: m["mediaUrl"],
+          status: m["status"] ?? "sent",
+          time: DateTime.tryParse(m["createdAt"] ?? "") ?? DateTime.now(),
+        ),
+      );
+    }
+
+    // Now update state in one go
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(loaded);
+    });
+
+    _scrollToBottom(); // make sure last message is visible
+  }
+
+
+  // ---------------------------------------------------
+  // 4️⃣ HANDLE INCOMING MESSAGE (DEDUP + STATUS UPDATE)
+  // ---------------------------------------------------
+  void _handleIncomingMessage(dynamic raw) {
+    final data = Map<String, dynamic>.from(raw as Map);
+
+    final senderId = data["senderId"]?.toString();
+    final clientMessageId = data["clientMessageId"]?.toString();
+    final messageId = (data["id"] ?? data["_id"]).toString();
+
+    // 1. If already have this message -> update, don't add
+    final existingIndex = _messages.indexWhere(
+          (m) =>
+      m.id == messageId ||
+          (clientMessageId != null && m.clientMessageId == clientMessageId),
+    );
+
+    if (existingIndex != -1) {
       setState(() {
-        _loadingConnection = false;
-        _isConnected = false;
+        _messages[existingIndex].id = messageId;
+        _messages[existingIndex].status =
+            data["status"]?.toString() ?? _messages[existingIndex].status;
       });
+      _scrollToBottom();
+      return;
+    }
+
+    // 2. New message
+    final isMe = senderId != null && senderId != _partnerId;
+
+    final msg = _ChatMessage(
+      id: messageId,
+      clientMessageId: clientMessageId,
+      text: data["content"] ?? "",
+      isMe: isMe,
+      messageType: data["messageType"],
+      mediaUrl: data["mediaUrl"],
+      status: data["status"] ?? "sent",
+      time: DateTime.parse(data["createdAt"]),
+    );
+
+    setState(() => _messages.add(msg));
+    _scrollToBottom();
+
+    if (!isMe) {
+      _markMessageAsRead([msg.id]);
     }
   }
 
-  void _sendMessage() {
+  // ---------------------------------------------------
+  // 5️⃣ SEND MESSAGE
+  // ---------------------------------------------------
+  void _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
+    if (_partnerId == null || _socket == null) return;
+
+    final clientMessageId =
+        "client-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}";
+
+    final optimistic = _ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      text: text,
+      isMe: true,
+      messageType: "text",
+      mediaUrl: null,
+      status: "sent",
+      time: DateTime.now(),
+    );
 
     setState(() {
-      _messages.add(
-        _ChatMessage(
-          text: text,
-          isMe: true,
-          time: DateTime.now(),
-        ),
-      );
+      _messages.add(optimistic);
       _textController.clear();
     });
+    _scrollToBottom();
 
-    // TODO: send to backend / socket here when you implement real chat
+    _socket!.emit("send-message", {
+      "receiverId": _partnerId,
+      "content": text,
+      "messageType": "text",
+      "clientMessageId": clientMessageId,
+    });
   }
 
+  // ---------------------------------------------------
+  // 6️⃣ MARK AS READ
+  // ---------------------------------------------------
+  Future<void> _markMessageAsRead(List<String> ids) async {
+    final token = await SharedPrefs.getAccessToken();
+    if (token == null) return;
+
+    await ApiHelper.postWithAuth(
+      url: "https://api.cuplix.in/api/partner-messages/read",
+      token: token,
+      body: {"messageIds": ids},
+    );
+  }
+
+  // ---------------------------------------------------
+  // UI BELOW THIS POINT
+  // ---------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    // theme colors used in your designs
     const primaryText = Color(0xFF2C2139);
     const mutedText = Color(0xFF9A8EA0);
 
@@ -144,7 +353,6 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        automaticallyImplyLeading: false,
         titleSpacing: 0,
         title: Row(
           children: [
@@ -155,11 +363,14 @@ class _ChatScreenState extends State<ChatScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade200,
-              backgroundImage:
-              _partnerAvatarUrl != null ? NetworkImage(_partnerAvatarUrl!) : null,
+              backgroundImage: _partnerAvatarUrl != null
+                  ? NetworkImage(_partnerAvatarUrl!)
+                  : null,
               child: _partnerAvatarUrl == null
                   ? Text(
-                _partnerInitial,
+                _partnerName.isNotEmpty
+                    ? _partnerName[0].toUpperCase()
+                    : 'P',
                 style: const TextStyle(
                   color: primaryText,
                   fontWeight: FontWeight.bold,
@@ -168,313 +379,224 @@ class _ChatScreenState extends State<ChatScreen> {
                   : null,
             ),
             const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _partnerName,
-                    style: const TextStyle(
-                      color: primaryText,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _partnerName,
+                  style: const TextStyle(
+                    color: primaryText,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color:
+                        _partnerOnline ? Colors.green : Colors.grey.shade400,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _isConnected ? Colors.green : Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _partnerOnline ? "Online" : "Offline",
+                      style: const TextStyle(
+                        color: mutedText,
+                        fontSize: 12,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _isConnected ? 'Online' : 'Offline',
-                        style: const TextStyle(
-                          color: mutedText,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: primaryText),
-              onPressed: () {},
-            ),
+                    )
+                  ],
+                )
+              ],
+            )
           ],
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ---------------- Messages area ----------------
-            Expanded(
-              child: _loadingConnection && _messages.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : _messages.isEmpty
-                  ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'No messages yet. Send a message to start the conversation!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: mutedText,
-                      fontSize: 16,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              )
-                  : ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final msg = _messages[index];
-                  return _MessageBubble(message: msg);
-                },
+
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,           // ⬅️ controller added
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
+            ),
+          ),
+
+          if (_partnerTyping)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 6),
+              child: Text(
+                "Typing...",
+                style: TextStyle(color: Colors.grey),
               ),
             ),
 
-            // ---------------- Input & (optional) info bar ----------------
-            _buildBottomArea(context),
-          ],
-        ),
+          _buildInputBar(),
+        ],
       ),
     );
   }
 
-  Widget _buildBottomArea(BuildContext context) {
-    const mutedText = Color(0xFF9A8EA0);
-    const cardBorder = Color(0xFFEDE8EF);
+  // INPUT BAR ---------------------------------------------------
+  Widget _buildInputBar() {
+    final text = _textController.text.trim();
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Input row
-        Container(
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-          ),
-          padding: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 8,
-            bottom: 8 + 4, // small extra spacing
-          ),
-          child: Row(
-            children: [
-              // ---- rounded input field ----
-              Expanded(
-                child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: const Color(0xFFE0C9F0),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          // TODO: emoji picker
-                        },
-                        icon: const Icon(
-                          Icons.emoji_emotions_outlined,
-                          size: 22,
-                          color: mutedText,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          onChanged: (_) {
-                            setState(() {}); // refresh mic/send icon
-                          },
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            hintText: 'Type a message...',
-                            hintStyle: TextStyle(color: mutedText),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          // TODO: attachment
-                        },
-                        icon: const Icon(
-                          Icons.attach_file,
-                          size: 20,
-                          color: mutedText,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          // TODO: open camera
-                        },
-                        icon: const Icon(
-                          Icons.camera_alt_outlined,
-                          size: 20,
-                          color: mutedText,
-                        ),
-                      ),
-                    ],
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(10),
+      color: Colors.white,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textController,
+              maxLines: 4,
+              minLines: 1,
+              onChanged: (v) {
+                if (v.isNotEmpty) {
+                  _socket?.emit(
+                    "typing",
+                    {"partnerId": _partnerId, "isTyping": true},
+                  );
+                }
+                typingTimer?.cancel();
+                typingTimer = Timer(const Duration(seconds: 2), () {
+                  _socket?.emit(
+                    "typing",
+                    {"partnerId": _partnerId, "isTyping": false},
+                  );
+                });
+                setState(() {});
+              },
+              decoration: InputDecoration(
+                hintText: "Type a message...",
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
                 ),
-              ),
-              const SizedBox(width: 10),
-
-              // ---- Mic / Send button with gradient ----
-              GestureDetector(
-                onTap: () {
-                  if (_textController.text.trim().isNotEmpty) {
-                    _sendMessage(); // send
-                  } else {
-                    // TODO: mic action (voice note)
-                  }
-                },
-                child: Container(
-                  height: 46,
-                  width: 46,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFFB57BFF),
-                        Color(0xFFE45EFF),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Icon(
-                    _textController.text.trim().isEmpty
-                        ? Icons.mic
-                        : Icons.send,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ---- "not connected" info bar (only when disconnected) ----
-        if (!_isConnected)
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: cardBorder)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 14,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'You are no longer connected with this partner.',
-                    style: TextStyle(color: mutedText, fontSize: 15),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: 220,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        // TODO: open Manage Connections screen
-                      },
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 16,
-                        ),
-                      ),
-                      child: const Text(
-                        'Manage Connections',
-                        style: TextStyle(
-                          color: Color(0xFF2C2139),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
-      ],
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: text.isEmpty ? null : _sendMessage,
+            child: const CircleAvatar(
+              radius: 25,
+              backgroundColor: Colors.purple,
+              child: Icon(
+                Icons.send,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          )
+        ],
+      ),
     );
   }
 }
 
-// ----------------- simple in-memory message model & bubble -----------------
-
-class _ChatMessage {
-  final String text;
-  final bool isMe;
-  final DateTime time;
-
-  _ChatMessage({
-    required this.text,
-    required this.isMe,
-    required this.time,
-  });
-}
+// ---------------------------------------------------------------------------
+// MESSAGE BUBBLE WIDGET  (time + ticks)
+// ---------------------------------------------------------------------------
 
 class _MessageBubble extends StatelessWidget {
   final _ChatMessage message;
+  const _MessageBubble({required this.message});
 
-  const _MessageBubble({Key? key, required this.message}) : super(key: key);
+  String _formatTime(DateTime t) {
+    final now = DateTime.now();
+    final diff = now.difference(t);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+
+    final d = t.day.toString().padLeft(2, '0');
+    final m = t.month.toString().padLeft(2, '0');
+    return '$d/$m';
+  }
 
   @override
   Widget build(BuildContext context) {
     final isMe = message.isMe;
     final bgColor = isMe ? const Color(0xFFE4C8FF) : Colors.white;
-    final textColor = const Color(0xFF2C2139);
+    const textColor = Color(0xFF2C2139);
+
+    IconData? tickIcon;
+    Color tickColor = Colors.grey;
+
+    if (isMe) {
+      switch (message.status) {
+        case 'sent':
+          tickIcon = Icons.check;
+          tickColor = Colors.grey;
+          break;
+        case 'delivered':
+          tickIcon = Icons.done_all;
+          tickColor = Colors.grey;
+          break;
+        case 'read':
+          tickIcon = Icons.done_all;
+          tickColor = Colors.blue;
+          break;
+        default:
+          tickIcon = Icons.check;
+          tickColor = Colors.grey;
+      }
+    }
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
         ),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          message.text,
-          style: TextStyle(color: textColor, fontSize: 15),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              message.text,
+              style: const TextStyle(color: textColor, fontSize: 15),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment:
+              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                Text(
+                  _formatTime(message.time),
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 11,
+                  ),
+                ),
+                if (isMe && tickIcon != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    tickIcon,
+                    size: 14,
+                    color: tickColor,
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
