@@ -675,7 +675,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 colors: [Color(0xFFFFEDEE), Color(0xFFF6A5A5)],
                               ),
                               icon: Icons.logout,
-                              title: 'Sign Out',
+                              title: 'Logout Out',
                               subtitle:
                                   'Securely log out of your account from this device',
                               onTap: () async {

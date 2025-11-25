@@ -8,7 +8,9 @@
 
     <application
         android:label="Cuplix"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
+
         <activity
             android:name="com.cuplix.cuplix.cuplix.MainActivity"
             android:exported="true"
@@ -25,13 +27,33 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- deep link receiver -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="myapp" android:host="auth" />
+            </intent-filter>
         </activity>
 
         <!-- Flutter embedding v2 marker -->
         <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
 
+    <!-- Allow querying apps that can handle web VIEW intents (http / https) -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+
+
+        <!-- Keep PROCESS_TEXT query if you need it -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
