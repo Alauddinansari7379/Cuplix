@@ -1,121 +1,181 @@
 // lib/auth/google_auth_client.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:uni_links/uni_links.dart';
 import 'package:cuplix/utils/SharedPreferences.dart';
-import 'package:cuplix/dashboard/dashboard.dart';
-
- import '../apiInterface/ApiInterface.dart';
+import 'package:cuplix/dashboard/Dashboard.dart';
+import '../apiInterface/ApiInterface.dart';
 import '../apiInterface/ApIHelper.dart';
+import '../login/Login.dart';
 
 class GoogleAuthClient {
-  static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email','profile']);
-  static const _secureKey = 'access_token';
   static final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static const String _accessKey = 'access_token';
+  static const String _refreshKey = 'refresh_token';
 
-  /// Sign in with Google, then send idToken to server (/auth/google).
-  static Future<void> signInWithGoogleAndBackend(BuildContext context) async {
+  /// Open backend auth URL in external browser.
+  /// Backend must perform Google OAuth and then redirect to a deep link like:
+  ///   myapp://auth-callback?access_token=...&refresh_token=...&email=...
+  ///
+  /// After launching the URL we listen for an incoming link (uni_links).
+  static Future<void> signInWithGoogleViaBrowser(BuildContext context) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    final authUrl = ApiInterface.authGoogle;
+
+    scaffold.showSnackBar(const SnackBar(content: Text('Opening Google sign-in...')));
+
     try {
-      // 1) Google interactive sign in
-      final account = await _googleSignIn.signIn();
-      if (account == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google sign-in canceled')));
+      final uri = Uri.parse(authUrl);
+
+      if (!await canLaunchUrl(uri)) {
+        scaffold.showSnackBar(const SnackBar(content: Text('Unable to open browser for Google sign-in')));
         return;
       }
 
-      // 2) Get tokens from Google
-      final auth = await account.authentication;
-      final idToken = auth.idToken;
-      if (idToken == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to get Google id token')));
-        return;
-      }
-
-      // 3) Send idToken to your backend
-      final payload = {'idToken': idToken};
-      final res = await ApiHelper.post(
-        url: ApiInterface.authGoogle,
-        body: payload,
-        context: context,
-        showLoader: true,
+      // setup one-shot listener BEFORE launching browser so we don't miss the callback
+      StreamSubscription<Uri?>? sub;
+      sub = uriLinkStream.listen(
+            (Uri? incomingUri) {
+          // sync listener -> call async handler
+          _handleIncomingLink(incomingUri, context, scaffold, sub);
+        },
+        onError: (err) {
+          debugPrint('uni_links error: $err');
+          scaffold.showSnackBar(SnackBar(content: Text('Error receiving auth callback: $err')));
+        },
       );
 
-      if (res['success'] == true) {
-        final data = res['data'] ?? {};
-        // adapt to what backend returns:
-        final appToken = (data['access_token'] ?? data['token'] ?? '').toString();
-        final user = data['user'] ?? data;
+      // Now open the external browser
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e, st) {
+      debugPrint('signInWithGoogleViaBrowser error: $e\n$st');
+      if (context.mounted) {
+        scaffold.showSnackBar(SnackBar(content: Text('Failed to start Google sign-in: $e')));
+      }
+    }
+  }
 
-        if (appToken.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No app token returned from server')));
-          return;
+  /// Async handler for incoming deep links (one-shot)
+  static Future<void> _handleIncomingLink(
+      Uri? uri,
+      BuildContext context,
+      ScaffoldMessengerState scaffold,
+      StreamSubscription<Uri?>? sub,
+      ) async {
+    if (uri == null) return;
+
+    debugPrint('Incoming link: $uri');
+
+    try {
+      final access = uri.queryParameters['access_token'] ?? uri.queryParameters['token'];
+      final refresh = uri.queryParameters['refresh_token'];
+      final email = uri.queryParameters['email'];
+      final name = uri.queryParameters['name'];
+
+      if (access != null && access.isNotEmpty) {
+        // Save tokens
+        await _secureStorage.write(key: _accessKey, value: access);
+        await SharedPrefs.setAccessToken(access);
+
+        if (refresh != null && refresh.isNotEmpty) {
+          await _secureStorage.write(key: _refreshKey, value: refresh);
+          await SharedPrefs.setRefreshToken(refresh);
         }
 
-        // 4) Save token securely
-        await _secureStorage.write(key: _secureKey, value: appToken);
-        await SharedPrefs.setAccessToken(appToken); // optional duplicate storage
+        if (email != null && email.isNotEmpty) await SharedPrefs.setEmail(email);
+        if (name != null && name.isNotEmpty) await SharedPrefs.setName(name);
 
-        // save user info locally if present
-        final name = (user['name'] ?? account.displayName ?? '').toString();
-        final email = (user['email'] ?? account.email ?? '').toString();
-        final avatar = (user['avatarUrl'] ?? account.photoUrl ?? '').toString();
-        if (name.isNotEmpty) await SharedPrefs.setName(name);
-        if (email.isNotEmpty) await SharedPrefs.setEmail(email);
-        if (avatar.isNotEmpty) await SharedPrefs.setAvatar(avatar);
+        // Optionally verify token with backend:
+        // await verifyServerToken(access);
 
-        // 5) Optional: call verify endpoint to confirm session (see method below)
-        // await verifyServerToken(appToken);
-
-        // 6) Navigate to dashboard
-        if (!context.mounted) return;
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const Dashboard()), (r) => false);
+        // Navigate to Dashboard and clear stack
+        if (context.mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const Dashboard()),
+                (route) => false,
+          );
+        }
       } else {
-        final err = res['error'] ?? 'Login with Google failed';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+        debugPrint('Callback received but no access token present');
+        if (context.mounted) {
+          scaffold.showSnackBar(const SnackBar(content: Text('Sign-in callback received but no token')));
+        }
       }
     } catch (e, st) {
-      debugPrint('signInWithGoogleAndBackend error: $e\n$st');
+      debugPrint('Error processing deep link: $e\n$st');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-in failed: $e')));
+        scaffold.showSnackBar(SnackBar(content: Text('Error processing sign-in callback: $e')));
+      }
+    } finally {
+      // cancel subscription (one-shot)
+      try {
+        await sub?.cancel();
+      } catch (e) {
+        debugPrint('Error cancelling deep link subscription: $e');
       }
     }
   }
 
   /// Optional: verify the app token with backend (/auth/verify).
-  /// Adjust to server's expected format (header vs body).
   static Future<bool> verifyServerToken(String token) async {
     try {
-      // If your ApiHelper has an authorized GET/POST helper, use that.
-      // Example: POST { token: "<token>" } to auth/verify
       final res = await ApiHelper.post(
         url: ApiInterface.authVerify,
         body: {'token': token},
-        // no context here - silent verify; or pass context to show loader
       );
-
-      if (res['success'] == true) {
-        // server responded OK; you can process res['data'] if needed
-        return true;
-      } else {
-        debugPrint('verifyServerToken failed: ${res['error']}');
-        return false;
-      }
+      return res['success'] == true;
     } catch (e) {
       debugPrint('verifyServerToken exception: $e');
       return false;
     }
   }
 
-  /// Sign out both locally and from Google
+  /// Sign out both locally and inform backend optionally.
+  /// This clears secure storage and SharedPrefs then navigates to Login.
   static Future<void> signOut(BuildContext context) async {
     try {
-      await _googleSignIn.signOut();
-      await _secureStorage.delete(key: _secureKey);
+      final scaffold = ScaffoldMessenger.of(context);
+      scaffold.showSnackBar(const SnackBar(content: Text('Signing out...')));
+
+      final refresh = await _secureStorage.read(key: _refreshKey) ?? await SharedPrefs.getRefreshToken();
+      final access = await _secureStorage.read(key: _accessKey) ?? await SharedPrefs.getAccessToken();
+
+      if (refresh != null && refresh.isNotEmpty) {
+        try {
+          if (access != null && access.isNotEmpty) {
+            await ApiHelper.postWithAuth(
+              url: ApiInterface.logout,
+              token: access,
+              body: {'refreshToken': refresh},
+              context: context,
+              showLoader: false,
+            );
+          } else {
+            await ApiHelper.post(
+              url: ApiInterface.logout,
+              body: {'refreshToken': refresh},
+              context: context,
+              showLoader: false,
+            );
+          }
+        } catch (e) {
+          debugPrint('Backend logout failed: $e');
+        }
+      }
+
+      // Clear local storage
+      await _secureStorage.deleteAll();
       await SharedPrefs.clearAll();
-      if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, '/login'); // adapt to your login route
+
+      // Navigate to Login (clear stack)
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const Login()), (r) => false);
+      }
     } catch (e) {
-      debugPrint('GoogleAuthClient.signOut error: $e');
+      debugPrint('signOut error: $e');
     }
   }
 }

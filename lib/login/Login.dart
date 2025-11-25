@@ -606,7 +606,7 @@ class _LoginPageState extends State<Login> {
           ),
           child: OutlinedButton.icon(
             onPressed: () {
-              GoogleAuthClient.signInWithGoogleAndBackend(context);
+             // GoogleAuthClient.signInWithGoogleAndBackend(context);
             },
             icon: Image.asset(
               'lib/assets/chrome.png',
