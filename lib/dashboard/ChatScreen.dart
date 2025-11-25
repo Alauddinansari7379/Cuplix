@@ -353,67 +353,67 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: primaryText),
-              onPressed: () => Navigator.pop(context),
-            ),
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: _partnerAvatarUrl != null
-                  ? NetworkImage(_partnerAvatarUrl!)
-                  : null,
-              child: _partnerAvatarUrl == null
-                  ? Text(
-                _partnerName.isNotEmpty
-                    ? _partnerName[0].toUpperCase()
-                    : 'P',
-                style: const TextStyle(
-                  color: primaryText,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-                  : null,
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _partnerName,
+        titleSpacing: 0, // you can also remove this line if you prefer default spacing
+        title: Padding(
+          padding: const EdgeInsets.only(left: 12), // 👈 add margin from the start
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: _partnerAvatarUrl != null
+                    ? NetworkImage(_partnerAvatarUrl!)
+                    : null,
+                child: _partnerAvatarUrl == null
+                    ? Text(
+                  _partnerName.isNotEmpty
+                      ? _partnerName[0].toUpperCase()
+                      : 'P',
                   style: const TextStyle(
                     color: primaryText,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color:
-                        _partnerOnline ? Colors.green : Colors.grey.shade400,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _partnerOnline ? "Online" : "Offline",
-                      style: const TextStyle(
-                        color: mutedText,
-                        fontSize: 12,
-                      ),
-                    )
-                  ],
                 )
-              ],
-            )
-          ],
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _partnerName,
+                    style: const TextStyle(
+                      color: primaryText,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _partnerOnline
+                              ? Colors.green
+                              : Colors.grey.shade400,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _partnerOnline ? "Online" : "Offline",
+                        style: const TextStyle(
+                          color: mutedText,
+                          fontSize: 12,
+                        ),
+                      )
+                    ],
+                  )
+                ],
+              )
+            ],
+          ),
         ),
       ),
 

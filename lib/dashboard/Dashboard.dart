@@ -4,6 +4,7 @@ import 'package:cuplix/dashboard/JournalScreen.dart';
 import 'package:cuplix/dashboard/MoreScreen.dart';
 import 'package:cuplix/dashboard/ProfileScreen.dart';
 import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
+import 'package:cuplix/dashboard/profile_checker.dart';
 import 'package:flutter/material.dart';
 
 import '../apiInterface/ApIHelper.dart';
@@ -29,9 +30,26 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfile();
+    });
     _loadPartnerConnection();
   }
 
+  Future<void> _loadProfile() async {
+    final profile = await ProfileChecker.fetchProfile(context: context);
+
+    if (profile != null) {
+      // Do something with the profile
+      print("Profile loaded: $profile");
+
+      // Optional: check if profile is incomplete
+      ProfileChecker.checkAndPrompt(
+        context: context,
+        profile: profile,
+      );
+    }
+  }
   Future<String?> _getAuthToken() async {
     return SharedPrefs.getAccessToken();
   }
