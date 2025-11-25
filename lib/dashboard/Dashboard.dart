@@ -20,12 +20,12 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   int _currentIndex = 0;
-
   // partner connection state
   bool _isPartnerConnected = false;
   String? _partnerName;
   String? _partnerRole;
   bool _showDisconnectPrompt = false;
+  String _userName = "";
 
   @override
   void initState() {
@@ -34,6 +34,7 @@ class _DashboardState extends State<Dashboard> {
       _loadProfile();
     });
     _loadPartnerConnection();
+    _loadUserName();
   }
 
   Future<void> _loadProfile() async {
@@ -53,7 +54,12 @@ class _DashboardState extends State<Dashboard> {
   Future<String?> _getAuthToken() async {
     return SharedPrefs.getAccessToken();
   }
-
+  Future<void> _loadUserName() async {
+    final name = await SharedPrefs.getName();
+    setState(() {
+      _userName = name ?? "";
+    });
+  }
   /// Load current partner connection from GET /partner-connections/me
   /// (logic copied from your working `_fetchPartnerConnection`)
   Future<void> _loadPartnerConnection() async {
@@ -211,6 +217,7 @@ class _DashboardState extends State<Dashboard> {
         showDisconnectPrompt: _showDisconnectPrompt,
         onCancelDisconnect: _toggleDisconnectPrompt,
         onConfirmDisconnect: _onConfirmDisconnect,
+        userName: _userName,
       ),
       const ChatScreen(),
       const JournalScreen(),
@@ -259,7 +266,6 @@ class _NavItem {
   const _NavItem({required this.icon, required this.label});
 }
 
-/// ---------- Dashboard content widget ----------
 class _DashboardContent extends StatelessWidget {
   const _DashboardContent({
     Key? key,
@@ -271,6 +277,7 @@ class _DashboardContent extends StatelessWidget {
     required this.showDisconnectPrompt,
     required this.onCancelDisconnect,
     required this.onConfirmDisconnect,
+    required this.userName,   // 👈 Add this
   }) : super(key: key);
 
   final bool isPartnerConnected;
@@ -281,6 +288,9 @@ class _DashboardContent extends StatelessWidget {
   final bool showDisconnectPrompt;
   final VoidCallback onCancelDisconnect;
   final VoidCallback onConfirmDisconnect;
+  final String userName;  // 👈 Add this
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -294,12 +304,15 @@ class _DashboardContent extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Welcome back, Alauddin Ansari! 👋',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    userName.isNotEmpty
+                        ? 'Welcome back, $userName! 👋'
+                        : 'Welcome back! 👋',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
+
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: Colors.purple.shade50,
@@ -307,6 +320,7 @@ class _DashboardContent extends StatelessWidget {
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
             const Text(
               "Here's how your relationship is growing today",

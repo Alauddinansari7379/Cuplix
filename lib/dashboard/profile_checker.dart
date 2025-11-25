@@ -105,14 +105,20 @@ class ProfileChecker {
       final religion = (profile['religion'] ?? '').toString().trim();
       final dateOfBirth = (profile['dateOfBirth'] ?? '').toString().trim();
       final mobile = (profile['mobile'] ?? '').toString().trim();
+      final name = (profile['name'] ?? '').toString().trim();
+      await SharedPrefs.setName(name);
+      await SharedPrefs.setNumber(mobile);
+
+      debugPrint('ProfileChecker.checkAndPrompt -> Name $name');
 
       bool missing = avatar.isEmpty || avatar.toLowerCase() == 'null';
       if (checkAll) {
         missing = missing ||
-            religion.isEmpty ||
+            name.isEmpty ||
             dateOfBirth.isEmpty ||
             mobile.isEmpty;
       }
+      debugPrint('ProfileChecker.checkAndPrompt -> Profile complete ✅');
 
       if (!missing) {
         debugPrint('ProfileChecker.checkAndPrompt -> Profile complete ✅');
