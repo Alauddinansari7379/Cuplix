@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 
 // TODO: put your real Gemini key here (keep it secret, don't commit to git)
-const String _geminiApiKey = 'AIzaSyD7VY0hKiFiWxGQ5-abs4Rjomgph3q_gYg';
+const String _geminiApiKey = 'AIzaSyC0I-lxRd56zaunsVqfb2hNoq9dzyvyWms';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
