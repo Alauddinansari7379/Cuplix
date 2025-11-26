@@ -1,64 +1,101 @@
-import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-class GoogleAuthClient {
-  static const _authUrl = "https://api.cuplix.in/api/auth/google";
-  static const _storage = FlutterSecureStorage();
+import '../apiInterface/ApiInterface.dart';
 
-  /// Opens Google sign-in via external browser.
-  static Future<void> signIn() async {
-    final uri = Uri.parse("https://api.cuplix.in/api/auth/google");
-    try {
-      if (!await canLaunchUrl(uri)) {
-        throw Exception("Cannot launch URL: $uri");
-      }
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok) {
-        throw Exception("launchUrl returned false for $uri");
-      }
-    } on PlatformException catch (e) {
-      // platform plugin error (this is your current case)
-      debugPrint('PlatformException launching url: $e');
-      rethrow;
-    } catch (e, st) {
-      debugPrint('Error launching url: $e\n$st');
-      rethrow;
+class GoogleWebLoginPage extends StatefulWidget {
+  const GoogleWebLoginPage({super.key});
+
+  @override
+  State<GoogleWebLoginPage> createState() => _GoogleWebLoginPageState();
+}
+
+class _GoogleWebLoginPageState extends State<GoogleWebLoginPage> {
+  final _storage = const FlutterSecureStorage();
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  // Your backend’s final redirect:
+  // https://cuplix.in/auth/callback?token=...&refreshToken=...
+  static const String callbackHost = 'cuplix.in';
+  static const String callbackPath = '/auth/callback';
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (url) {
+            setState(() => _isLoading = true);
+          },
+          onPageFinished: (url) {
+            setState(() => _isLoading = false);
+          },
+          onNavigationRequest: (NavigationRequest request) async {
+            final uri = Uri.parse(request.url);
+            debugPrint('🌐 Nav to: $uri');
+
+            // Match: https://cuplix.in/auth/callback?token=...&refreshToken=...
+            if (uri.host == callbackHost && uri.path == callbackPath) {
+              final token = uri.queryParameters['token'];
+              final refresh = uri.queryParameters['refreshToken'];
+
+              debugPrint('✅ CALLBACK token=$token');
+              debugPrint('✅ CALLBACK refreshToken=$refresh');
+
+              if (token != null && refresh != null) {
+                // Save as your app tokens
+                await _storage.write(key: 'accessToken', value: token);
+                await _storage.write(key: 'refreshToken', value: refresh);
+
+                if (!mounted) return NavigationDecision.prevent;
+
+                // Close WebView, return success
+                Navigator.of(context).pop(true);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Login callback missing token data'),
+                  ),
+                );
+              }
+
+              return NavigationDecision.prevent;
+            }
+
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+    // This must be: https://api.cuplix.in/api/auth/google
+      ..loadRequest(Uri.parse(ApiInterface.authGoogle));
+  }
+  static Future<void> startLogin() async {
+    final uri = Uri.parse('https://api.cuplix.in/api/auth/google');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw Exception('Could not launch $uri');
     }
   }
-
-
-  /// Saves tokens after backend callback completes.
-  /// Call this once you receive accessToken + refreshToken.
-  static Future<void> saveTokens({
-    required String accessToken,
-    required String refreshToken,
-  }) async {
-    await _storage.write(key: "accessToken", value: accessToken);
-    await _storage.write(key: "refreshToken", value: refreshToken);
-  }
-
-  /// Reads stored tokens.
-  static Future<Map<String, String?>> getTokens() async {
-    final access = await _storage.read(key: "accessToken");
-    final refresh = await _storage.read(key: "refreshToken");
-    return {
-      "accessToken": access,
-      "refreshToken": refresh,
-    };
-  }
-
-  /// Sign-out logic → clears tokens.
-  static Future<void> signOut() async {
-    await _storage.delete(key: "accessToken");
-    await _storage.delete(key: "refreshToken");
-  }
-
-  /// Utility: show toast or snack message
-  static void notify(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Continue with Google'),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+        ],
+      ),
     );
   }
 }

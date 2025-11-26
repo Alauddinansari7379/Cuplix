@@ -7,11 +7,15 @@ import 'package:cuplix/login/SplashScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../apiInterface/ApiInterface.dart';
 import '../apiInterface/ApIHelper.dart';
 import '../dashboard/Dashboard.dart';
+import '../dashboard/profile_checker.dart';
 import '../services/GoogleSignInService.dart';
+import '../services/GoogleWebAuth.dart';
 import '../utils/SharedPreferences.dart';
 import 'OnboardingRoleSelection.dart';
 
@@ -52,28 +56,10 @@ class _LoginPageState extends State<Login> {
   @override
   void initState() {
     super.initState();
-    _appLinks = AppLinks();
+    GoogleWebAuth.initDeepLinks(context);
 
-    // cold start
-    _appLinks.getInitialAppLink().then((uri) {
-      if (uri != null) _handleIncomingUri(uri);
-    }).catchError((e) => debugPrint('initial app link error: $e'));
+  }
 
-    // warm start
-    _sub = _appLinks.uriLinkStream.listen((uri) {
-      _handleIncomingUri(uri);
-    }, onError: (e) => debugPrint('uriStream error: $e'));
-  }
-  void _handleIncomingUri(Uri uri) async {
-    final access = uri.queryParameters['accessToken'];
-    final refresh = uri.queryParameters['refreshToken'];
-    if (access != null && refresh != null) {
-      await const FlutterSecureStorage().write(key: 'accessToken', value: access);
-      await const FlutterSecureStorage().write(key: 'refreshToken', value: refresh);
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
-    }
-  }
    @override
   void dispose() {
     _emailController.dispose();
@@ -83,7 +69,7 @@ class _LoginPageState extends State<Login> {
     _signInEmailController.dispose();
     _signInPasswordController.dispose();
     _otpController.dispose();
-    _sub?.cancel();
+    GoogleWebAuth.dispose();
     super.dispose();
   }
 
@@ -307,7 +293,26 @@ class _LoginPageState extends State<Login> {
       ).showSnackBar(SnackBar(content: Text(err.toString())));
     }
   }
+  Future<void> _loadProfile() async {
+    final profile = await ProfileChecker.fetchProfile(context: context);
 
+    if (profile != null) {
+      // Do something with the profile
+      print("Profile loaded: $profile");
+      final String name = profile['name']?.toString() ?? "";
+      final String mobile = profile['mobile']?.toString() ?? "";
+
+      await SharedPrefs.setName(name);
+      await SharedPrefs.setNumber(mobile);
+
+      debugPrint("Saved name: $name | mobile: $mobile");
+      // Optional: check if profile is incomplete
+      ProfileChecker.checkAndPrompt(
+        context: context,
+        profile: profile,
+      );
+    }
+  }
   // ---------- Sign In ----------
   Future<void> _signIn() async {
     WidgetsBinding.instance.addPostFrameCallback(
@@ -340,7 +345,6 @@ class _LoginPageState extends State<Login> {
 
       if (result['success'] == true) {
         final data = result['data'];
-
         // Typical shapes: { user: {...}, accessToken: "...", refreshToken: "..." }
         String? accessToken;
         String? refreshToken;
@@ -403,7 +407,7 @@ class _LoginPageState extends State<Login> {
           // ignore: avoid_print
           print('Warning: failed to persist login data: $e');
         }
-
+        _loadProfile();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Signed in successfully!')),
         );
@@ -635,9 +639,20 @@ class _LoginPageState extends State<Login> {
             ],
           ),
           child: OutlinedButton.icon(
-            onPressed: () async {
-              await GoogleAuthClient.signIn();
+            // in your Login.dart
+            onPressed: () async{
+               await GoogleWebAuth.startLogin();
+              // final ok = await Navigator.push<bool>(
+              //   context,
+              //   MaterialPageRoute(builder: (_) => const GoogleWebLoginPage()),
+              // );
+
+              // if (ok == true && context.mounted) {
+              //   // tokens already saved in FlutterSecureStorage
+              //   Navigator.pushReplacementNamed(context, '/home');
+              // }
             },
+
             icon: Image.asset(
               'lib/assets/chrome.png',
               height: 18,
