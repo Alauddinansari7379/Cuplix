@@ -22,4 +22,8 @@ class ApiInterface {
   static const String refreshToken = "${baseUrl}refresh";
 
   static const String partnerConnectionsMe = "${baseUrl}partner-connections/me";
+
+  //User
+  static const String currentUser = "${baseUrl}users/me";
+
 }

@@ -20,6 +20,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   int _currentIndex = 0;
+
   // partner connection state
   bool _isPartnerConnected = false;
   String? _partnerName;
@@ -51,17 +52,24 @@ class _DashboardState extends State<Dashboard> {
       );
     }
   }
+
   Future<String?> _getAuthToken() async {
     return SharedPrefs.getAccessToken();
   }
+
   Future<void> _loadUserName() async {
     final name = await SharedPrefs.getName();
     setState(() {
       _userName = name ?? "";
     });
   }
+
   /// Load current partner connection from GET /partner-connections/me
-  /// (logic copied from your working `_fetchPartnerConnection`)
+  /// Backend guarantee: in this endpoint, `user1` is ALWAYS the connected partner.
+  /// Load current partner connection from GET /partner-connections/me
+  /// Decide partner by comparing with current logged-in user from "me" API.
+  /// Load current partner connection from GET /partner-connections/me
+  /// and /users/me to reliably find the partner user.
   Future<void> _loadPartnerConnection() async {
     try {
       final String? token = await _getAuthToken();
@@ -77,6 +85,30 @@ class _DashboardState extends State<Dashboard> {
         return;
       }
 
+      // 1️⃣ Get CURRENT USER from /users/me
+      final meRes = await ApiHelper.getWithAuth(
+        url: ApiInterface.currentUser, // <-- make sure this points to /users/me
+        token: token,
+        context: context,
+        showLoader: false,
+      );
+
+      if (!mounted) return;
+
+      if (meRes['success'] != true || meRes['data'] == null) {
+        setState(() {
+          _isPartnerConnected = false;
+          _partnerName = null;
+          _partnerRole = null;
+          _showDisconnectPrompt = false;
+        });
+        return;
+      }
+
+      final meData = meRes['data'] as Map;
+      final String currentUserId = meData['id'].toString();
+
+      // 2️⃣ Get PARTNER CONNECTION from /partner-connections/me
       final res = await ApiHelper.getWithAuth(
         url: ApiInterface.partnerConnectionsMe,
         token: token,
@@ -86,7 +118,7 @@ class _DashboardState extends State<Dashboard> {
 
       if (!mounted) return;
 
-      if (res['success'] != true) {
+      if (res['success'] != true || res['data'] == null) {
         setState(() {
           _isPartnerConnected = false;
           _partnerName = null;
@@ -96,10 +128,17 @@ class _DashboardState extends State<Dashboard> {
         return;
       }
 
-      final data = res['data'];
+      final data = res['data'] as Map;
 
-      // If API returns `null` => not connected
-      if (data == null) {
+      final String? user1Id = data['user1Id']?.toString();
+      final String? user2Id = data['user2Id']?.toString();
+
+      final Map<String, dynamic>? user1 =
+      (data['user1'] as Map?)?.cast<String, dynamic>();
+      final Map<String, dynamic>? user2 =
+      (data['user2'] as Map?)?.cast<String, dynamic>();
+
+      if (user1 == null || user2 == null) {
         setState(() {
           _isPartnerConnected = false;
           _partnerName = null;
@@ -109,21 +148,39 @@ class _DashboardState extends State<Dashboard> {
         return;
       }
 
-      // 🔹 Backend guarantees that for `/me`
-      //    the OTHER person is always in `user1`.
-      Map<String, dynamic>? partnerProfile =
-      (data['user1'] ?? const {})['profile'];
+      // 3️⃣ Decide who is the partner
+      //    From your note: user1Id is partner, user2Id is current user.
+      //    Still, we also double-check with currentUserId for safety.
+      Map<String, dynamic>? partnerUser;
 
-      // Fallback to user2.profile if needed
-      partnerProfile ??= (data['user2'] ?? const {})['profile'];
+      if (user2Id == currentUserId) {
+        // matches your rule: user2Id is current -> partner is user1
+        partnerUser = user1;
+      } else if (user1Id == currentUserId) {
+        // safety fallback in case backend flips it in future
+        partnerUser = user2;
+      } else if (user1['id']?.toString() == currentUserId) {
+        partnerUser = user2;
+      } else if (user2['id']?.toString() == currentUserId) {
+        partnerUser = user1;
+      } else {
+        // ultimate fallback
+        partnerUser = user1;
+      }
 
-      // Safely resolve name
+      final Map<String, dynamic>? partnerProfile =
+      (partnerUser['profile'] as Map?)?.cast<String, dynamic>();
+
+      // 4️⃣ Resolve partner name
+      final String? rawName = partnerProfile?['name']?.toString().trim();
+      final String? rawUsername = partnerUser['username']?.toString().trim();
+
       final String name =
-      (partnerProfile?['name']?.toString().trim().isNotEmpty ?? false)
-          ? partnerProfile!['name'].toString()
-          : 'Partner';
+      (rawName != null && rawName.isNotEmpty)
+          ? rawName
+          : (rawUsername ?? 'Partner');
 
-      // role (e.g. husband/wife/etc.)
+      // 5️⃣ Resolve partner role (husband / wife / etc.)
       final String? role =
       (partnerProfile?['role']?.toString().trim().isNotEmpty ?? false)
           ? partnerProfile!['role'].toString()
@@ -135,7 +192,8 @@ class _DashboardState extends State<Dashboard> {
         _partnerRole = role;
         _showDisconnectPrompt = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error in _loadPartnerConnection: $e');
       if (!mounted) return;
       setState(() {
         _isPartnerConnected = false;
@@ -145,6 +203,8 @@ class _DashboardState extends State<Dashboard> {
       });
     }
   }
+
+
 
   Future<void> _openInvitePartner() async {
     await Navigator.push(
@@ -265,7 +325,6 @@ class _NavItem {
 
   const _NavItem({required this.icon, required this.label});
 }
-
 class _DashboardContent extends StatelessWidget {
   const _DashboardContent({
     Key? key,
@@ -277,7 +336,7 @@ class _DashboardContent extends StatelessWidget {
     required this.showDisconnectPrompt,
     required this.onCancelDisconnect,
     required this.onConfirmDisconnect,
-    required this.userName,   // 👈 Add this
+    required this.userName,
   }) : super(key: key);
 
   final bool isPartnerConnected;
@@ -288,9 +347,7 @@ class _DashboardContent extends StatelessWidget {
   final bool showDisconnectPrompt;
   final VoidCallback onCancelDisconnect;
   final VoidCallback onConfirmDisconnect;
-  final String userName;  // 👈 Add this
-
-
+  final String userName;
 
   @override
   Widget build(BuildContext context) {
@@ -309,10 +366,12 @@ class _DashboardContent extends StatelessWidget {
                     userName.isNotEmpty
                         ? 'Welcome back, $userName! 👋'
                         : 'Welcome back! 👋',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: Colors.purple.shade50,
@@ -328,21 +387,21 @@ class _DashboardContent extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Partner section – either "no partner" card OR connected UI
+            // Partner section
             if (!isPartnerConnected)
               _roundedCard(child: _noPartnerRow(onInvitePartner))
             else
               Column(
                 children: [
                   _connectedPartnerCard(
-                    partnerName: partnerName ?? 'Alex Doe',
-                    partnerRole: partnerRole ?? 'husband',
+                    partnerName: partnerName ?? 'Partner',
+                    partnerRole: partnerRole ?? 'partner',
                     onTapDisconnectIcon: onTapDisconnectIcon,
                   ),
                   if (showDisconnectPrompt) const SizedBox(height: 12),
                   if (showDisconnectPrompt)
                     _disconnectPromptCard(
-                      partnerName: partnerName ?? 'Alex Doe',
+                      partnerName: partnerName ?? 'Partner',
                       onCancel: onCancelDisconnect,
                       onConfirm: onConfirmDisconnect,
                     ),
@@ -350,8 +409,6 @@ class _DashboardContent extends StatelessWidget {
               ),
 
             const SizedBox(height: 18),
-
-            // ------- everything below is unchanged UI code -------
 
             // Trial / Upgrade card
             _roundedCard(
@@ -433,14 +490,17 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-            // Emotional Connection Score card (big)
+            // Emotional Connection Score card
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'Emotional Connection Score',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -457,7 +517,10 @@ class _DashboardContent extends StatelessWidget {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: Color(0xFFf6ecff),
-                        child: Icon(Icons.favorite, color: Color(0xFFaf57db)),
+                        child: Icon(
+                          Icons.favorite,
+                          color: Color(0xFFaf57db),
+                        ),
                       ),
                     ],
                   ),
@@ -484,7 +547,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-            // ---------- Metrics grid (2 columns) ----------
+            // Metrics grid
             Builder(
               builder: (context) {
                 final screenWidth = MediaQuery.of(context).size.width;
@@ -493,7 +556,7 @@ class _DashboardContent extends StatelessWidget {
                 final available = screenWidth - horizontalPadding - spacing;
                 final itemWidth = available / 2;
 
-                final metricItems = const [
+                const metricItems = [
                   _MetricCard(
                     title: 'Spark Index',
                     value: '92',
@@ -529,9 +592,10 @@ class _DashboardContent extends StatelessWidget {
                 );
               },
             ),
+
             const SizedBox(height: 18),
 
-            // Weekly Happiness Trend chart card (placeholder)
+            // Weekly Happiness Trend
             _roundedCard(
               child: SizedBox(
                 height: 180,
@@ -580,7 +644,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-            // Compatibility Over Time chart card (placeholder)
+            // Compatibility Over Time
             _roundedCard(
               child: SizedBox(
                 height: 180,
@@ -629,110 +693,46 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-            // Relationship Blueprint card with progress rows + insights
+            // Relationship Blueprint
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        height: 48,
-                        width: 48,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFaf57db), Color(0xFFe46791)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Center(
-                          child: Icon(Icons.track_changes, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Relationship Blueprint',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Your personalized compatibility map',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const _ProgressRow(
+                children: const [
+                  _ProgressRow(
                     icon: Icons.chat_bubble_outline,
                     label: 'Communication',
                     percent: 0.85,
                   ),
-                  const SizedBox(height: 12),
-                  const _ProgressRow(
+                  SizedBox(height: 12),
+                  _ProgressRow(
                     icon: Icons.favorite_border,
                     label: 'Emotional Intimacy',
                     percent: 0.78,
                   ),
-                  const SizedBox(height: 12),
-                  const _ProgressRow(
+                  SizedBox(height: 12),
+                  _ProgressRow(
                     icon: Icons.album,
                     label: 'Shared Values',
                     percent: 0.92,
                   ),
-                  const SizedBox(height: 12),
-                  const _ProgressRow(
+                  SizedBox(height: 12),
+                  _ProgressRow(
                     icon: Icons.person_search,
                     label: 'Conflict Resolution',
                     percent: 0.72,
                   ),
-                  const SizedBox(height: 12),
-                  const _ProgressRow(
+                  SizedBox(height: 12),
+                  _ProgressRow(
                     icon: Icons.accessibility_new,
                     label: 'Physical Intimacy',
                     percent: 0.88,
                   ),
-                  const SizedBox(height: 18),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F0F7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Blueprint Insights',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Your strongest area is Shared Values (92%). Focus on improving Conflict '
-                              'Resolution through active listening techniques.',
-                          style: TextStyle(color: Colors.grey, height: 1.4),
-                        ),
-                      ],
-                    ),
-                  ),
+                  SizedBox(height: 18),
+                  _BlueprintInsights(),
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
             // Smart Notifications header
@@ -766,7 +766,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Notification cards list
+            // Notification cards
             _roundedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -807,6 +807,7 @@ class _DashboardContent extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
             // Unspoken Needs Decoder
@@ -820,7 +821,8 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.favorite_border,
                     title:
                     "Today, your partner would appreciate being noticed for his efforts.",
-                    actionLabel: "Send a text acknowledging their hard work",
+                    actionLabel:
+                    "Send a text acknowledging their hard work",
                     bgColor: Color(0xFFFFF3F4),
                   ),
                   SizedBox(height: 12),
@@ -828,15 +830,17 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.favorite,
                     title:
                     "You may be feeling overwhelmed with responsibilities lately.",
-                    actionLabel: "Ask your partner for support with daily tasks",
+                    actionLabel:
+                    "Ask your partner for support with daily tasks",
                     bgColor: Color(0xFFF6F0FF),
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Communication & AI header
+            // Communication & AI
             const _SectionHeader(
               title: 'Communication & AI',
               subtitle:
@@ -845,7 +849,6 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Features list
             _roundedCard(
               child: Column(
                 children: const [
@@ -866,7 +869,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.mic,
                     title: 'Voice AI',
-                    subtitle: 'Talk to your AI relationship therapist anytime',
+                    subtitle:
+                    'Talk to your AI relationship therapist anytime',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -876,7 +880,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.forum_outlined,
                     title: 'Partner Chat',
-                    subtitle: 'Secure, AI-enhanced messaging with your partner',
+                    subtitle:
+                    'Secure, AI-enhanced messaging with your partner',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -904,9 +909,10 @@ class _DashboardContent extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Memories & Care header
+            // Memories & Care
             const _SectionHeader(
               title: 'Memories & Care',
               subtitle:
@@ -945,7 +951,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.favorite,
                     title: 'Intimacy Builder',
-                    subtitle: 'Custom suggestions to maintain emotional spark',
+                    subtitle:
+                    'Custom suggestions to maintain emotional spark',
                     onTap: null,
                   ),
                   const SizedBox(height: 10),
@@ -955,15 +962,17 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.health_and_safety,
                     title: 'Therapist Mode',
-                    subtitle: 'Conflict analysis with improvement suggestions',
+                    subtitle:
+                    'Conflict analysis with improvement suggestions',
                     onTap: null,
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Planning & Adventures header
+            // Planning & Adventures
             const _SectionHeader(
               title: 'Planning & Adventures',
               subtitle: 'Organize quality time and shared goals',
@@ -980,7 +989,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.calendar_today,
                     title: 'Couple Calendar',
-                    subtitle: 'AI-managed scheduling for relationship events',
+                    subtitle:
+                    'AI-managed scheduling for relationship events',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -990,7 +1000,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.track_changes,
                     title: 'Shared Goals',
-                    subtitle: 'Track goals and dream experiences in one place',
+                    subtitle:
+                    'Track goals and dream experiences in one place',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -1000,7 +1011,8 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.show_chart,
                     title: 'Compatibility',
-                    subtitle: 'Deep emotional interaction visualization',
+                    subtitle:
+                    'Deep emotional interaction visualization',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -1010,15 +1022,17 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.music_note,
                     title: 'Mood Music',
-                    subtitle: 'Personalized playlists for emotional regulation',
+                    subtitle:
+                    'Personalized playlists for emotional regulation',
                     onTap: null,
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Health & Wellness header
+            // Health & Wellness
             const _SectionHeader(
               title: 'Health & Wellness',
               subtitle:
@@ -1058,15 +1072,17 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.monitor_heart,
                     title: 'Sensor Tracking',
-                    subtitle: 'Real-time emotional and conflict detection',
+                    subtitle:
+                    'Real-time emotional and conflict detection',
                     onTap: null,
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Rewards & Marketplace header
+            // Rewards & Marketplace
             const _SectionHeader(
               title: 'Rewards & Marketplace',
               subtitle: 'Celebrate each other with thoughtful surprises',
@@ -1110,9 +1126,10 @@ class _DashboardContent extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
-            // Account & Privacy header
+            // Account & Privacy
             const _SectionHeader(
               title: 'Account & Privacy',
               subtitle: 'Manage your personal details and data preferences',
@@ -1158,7 +1175,7 @@ class _DashboardContent extends StatelessWidget {
 
             const SizedBox(height: 18),
 
-            // Today's Insight Card
+            // Today's Insight Card (fixed - no const error)
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -1169,41 +1186,16 @@ class _DashboardContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        height: 42,
-                        width: 42,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [Color(0xFFaf57db), Color(0xFFe46791)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        "Today's Insight",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF2C2139),
-                        ),
-                      ),
-                    ],
-                  ),
+                  const _InsightHeader(),
                   const SizedBox(height: 12),
                   const Text(
                     "Your partner has been showing extra effort this week. "
                         "Consider expressing appreciation – a simple acknowledgment can "
                         "strengthen your bond by 15%.",
-                    style: TextStyle(color: Color(0xFF7C748A), height: 1.4),
+                    style: TextStyle(
+                      color: Color(0xFF7C748A),
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Align(
@@ -1256,7 +1248,7 @@ class _DashboardContent extends StatelessWidget {
     );
   }
 
-  // original "no partner connected" row
+  // "no partner connected" row
   static Widget _noPartnerRow(VoidCallback onInvitePartner) {
     return Row(
       children: [
@@ -1282,7 +1274,7 @@ class _DashboardContent extends StatelessWidget {
     );
   }
 
-  // connected partner green card (third image)
+  // connected partner green card
   static Widget _connectedPartnerCard({
     required String partnerName,
     required String partnerRole,
@@ -1364,7 +1356,7 @@ class _DashboardContent extends StatelessWidget {
     );
   }
 
-  // red "Disconnect" prompt (fifth image)
+  // red "Disconnect" prompt
   static Widget _disconnectPromptCard({
     required String partnerName,
     required VoidCallback onCancel,
@@ -1468,7 +1460,7 @@ class _DashboardContent extends StatelessWidget {
   }
 }
 
-// ===== helper widgets below are unchanged from your file =====
+// ===== helper widgets =====
 
 class _MetricCard extends StatelessWidget {
   final String title;
@@ -1628,6 +1620,40 @@ class _ProgressRow extends StatelessWidget {
   }
 }
 
+class _BlueprintInsights extends StatelessWidget {
+  const _BlueprintInsights();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F0F7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Blueprint Insights',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Your strongest area is Shared Values (92%). Focus on improving Conflict '
+                'Resolution through active listening techniques.',
+            style: TextStyle(color: Colors.grey, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NotificationCard extends StatelessWidget {
   final Color iconColorStart;
   final Color iconColorEnd;
@@ -1657,7 +1683,7 @@ class _NotificationCard extends StatelessWidget {
         border: Border.all(color: bgColor.withOpacity(0.6)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
@@ -1950,6 +1976,43 @@ class _SectionHeader extends StatelessWidget {
         Text(
           subtitle,
           style: const TextStyle(color: Color(0xFF9A8EA0)),
+        ),
+      ],
+    );
+  }
+}
+
+class _InsightHeader extends StatelessWidget {
+  const _InsightHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          height: 42,
+          width: 42,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFFaf57db), Color(0xFFe46791)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: const Icon(
+            Icons.auto_awesome,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Text(
+          "Today's Insight",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Color(0xFF2C2139),
+          ),
         ),
       ],
     );
