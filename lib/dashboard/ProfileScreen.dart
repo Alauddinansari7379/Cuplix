@@ -9,8 +9,9 @@ import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
- import '../apiInterface/ApiInterface.dart';
+import '../apiInterface/ApiInterface.dart';
 import '../apiInterface/ApIHelper.dart';
+import '../login/Login.dart';
 import '../utils/SharedPreferences.dart';
 import '../login/OnboardingRoleSelection.dart';
 import 'CoupleCalendarScreen.dart';
@@ -81,14 +82,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         if (profileJson is Map) {
           final name =
-          (profileJson['name'] ?? profileJson['fullName'] ?? '').toString();
+              (profileJson['name'] ?? profileJson['fullName'] ?? '').toString();
           final email = (profileJson['email'] ?? '').toString();
           final bio = (profileJson['bio'] ?? 'No bio available').toString();
 
+          // Fetch email outside setState
+          final storedEmail = await SharedPrefs.getEmail();
+
           setState(() {
             _name = name.isEmpty ? 'User' : name;
-            _email = email.isEmpty ? 'No email available' : email;
+
+            // Correct email setting
+            _email =
+                storedEmail == null || storedEmail.isEmpty
+                    ? 'No email available'
+                    : storedEmail;
+
             _bio = bio.isEmpty ? 'No bio available' : bio;
+
             _loading = false;
             _error = null;
           });
@@ -139,525 +150,584 @@ class _ProfileScreenState extends State<ProfileScreen> {
         foregroundColor: Colors.black,
       ),
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_error != null) ...[
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w500,
+        child:
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 18,
                   ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              const SizedBox(height: 4),
-              const Text(
-                'Manage your account and access all relationship tools',
-                style: TextStyle(color: mutedText),
-              ),
-              const SizedBox(height: 18),
-
-              // ---------- User card ----------
-              _roundedCard(
-                child: Row(
-                  children: [
-                    Container(
-                      height: 64,
-                      width: 64,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFaf57db),
-                            Color(0xFFe46791),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _initials(_displayName),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_error != null) ...[
+                        Text(
+                          _error!,
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                      ],
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Manage your account and access all relationship tools',
+                        style: TextStyle(color: mutedText),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _displayName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: primaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _displayEmail,
-                            style: const TextStyle(color: mutedText),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _displayBio,
-                            style: const TextStyle(color: mutedText),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        // 👇 Navigate to onboarding flow to edit profile
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                OnboardingRoleSelection(
-                                  userEmail: _email,
+                      const SizedBox(height: 18),
+
+                      // ---------- User card ----------
+                      _roundedCard(
+                        child: Row(
+                          children: [
+                            Container(
+                              height: 64,
+                              width: 64,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFaf57db),
+                                    Color(0xFFe46791),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.edit,
-                        color: Color(0xFF9A8EA0),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ---------- Free trial / upgrade card ----------
-              _roundedCard(
-                child: Row(
-                  children: [
-                    Container(
-                      height: 44,
-                      width: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF6EEFF),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.emoji_events,
-                          color: Color(0xFFaf57db),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Free Trial',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _initials(_displayName),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '10 days remaining',
-                            style: TextStyle(color: mutedText),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xffb640ef),
-                            Color(0xFFe46791),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _displayName,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _displayEmail,
+                                    style: const TextStyle(color: mutedText),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _displayBio,
+                                    style: const TextStyle(color: mutedText),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                // 👇 Navigate to onboarding flow to edit profile
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => OnboardingRoleSelection(
+                                          userEmail: _email,
+                                        ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.edit,
+                                color: Color(0xFF9A8EA0),
+                              ),
+                            ),
                           ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius:
-                        BorderRadius.all(Radius.circular(20)),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // go to upgrade / subscription screen
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding:
-                          const EdgeInsets.symmetric(horizontal: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: const Text(
-                          'Upgrade Now',
-                          style: TextStyle(color: Colors.white),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 18),
+                      const SizedBox(height: 14),
 
-              // ---------- Profile Management header ----------
-              const Text(
-                'Profile Management',
-                style:
-                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-
-              _roundedCard(
-                child: Column(
-                  children: [
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E9FF), Color(0xFF8E50E6)],
-                      ),
-                      icon: Icons.edit_outlined,
-                      title: 'Edit Profile & Preferences',
-                      subtitle:
-                      'Update your personal information and relationship preferences',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                OnboardingRoleSelection(
-                                  userEmail: _email,
+                      // ---------- Free trial / upgrade card ----------
+                      _roundedCard(
+                        child: Row(
+                          children: [
+                            Container(
+                              height: 44,
+                              width: 44,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6EEFF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.emoji_events,
+                                  color: Color(0xFFaf57db),
                                 ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E9FF), Color(0xFF8E50E6)],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Free Trial',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    '10 days remaining',
+                                    style: TextStyle(color: mutedText),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xffb640ef),
+                                    Color(0xFFe46791),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(20),
+                                ),
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  // go to upgrade / subscription screen
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Upgrade Now',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      icon: Icons.person_add_alt_1,
-                      title: 'Invite Partner',
-                      subtitle:
-                      'Connect with your significant other to sync your relationship data',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const InvitePartnerScreen()),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
 
-              // Health & Wellness header (inline)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: const [
-                  Text(
-                    'Health & Wellness',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                      const SizedBox(height: 18),
+
+                      // ---------- Profile Management header ----------
+                      const Text(
+                        'Profile Management',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      _roundedCard(
+                        child: Column(
+                          children: [
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E9FF), Color(0xFF8E50E6)],
+                              ),
+                              icon: Icons.edit_outlined,
+                              title: 'Edit Profile & Preferences',
+                              subtitle:
+                                  'Update your personal information and relationship preferences',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => OnboardingRoleSelection(
+                                          userEmail: _email,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E9FF), Color(0xFF8E50E6)],
+                              ),
+                              icon: Icons.person_add_alt_1,
+                              title: 'Invite Partner',
+                              subtitle:
+                                  'Connect with your significant other to sync your relationship data',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const InvitePartnerScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Health & Wellness header (inline)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: const [
+                          Text(
+                            'Health & Wellness',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Grouped tiles
+                      _roundedCard(
+                        child: Column(
+                          children: [
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFD697EC)],
+                              ),
+                              icon: Icons.water_drop_outlined,
+                              title: 'Cycle Tracker',
+                              subtitle:
+                                  'Track your menstrual cycle and hormonal mood patterns',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => const CycleTrackerScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFEEF4FF), Color(0xFF7599E6)],
+                              ),
+                              icon: Icons.nightlight_round,
+                              title: 'Sleep & Stress',
+                              subtitle:
+                                  'Monitor your sleep quality and stress levels',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SleepStressScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFE7FFFA), Color(0xFF7EEACC)],
+                              ),
+                              icon: Icons.monitor_heart,
+                              title: 'Sensor Tracking',
+                              subtitle:
+                                  'Real-time emotional and conflict detection',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => const SensorTrackingScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // ---------- Relationship Tools header ----------
+                      const Text(
+                        'Relationship Tools',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Relationship Tools grouped card
+                      _roundedCard(
+                        child: Column(
+                          children: [
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
+                              ),
+                              icon: Icons.calendar_today,
+                              title: 'Couple Calendar',
+                              subtitle:
+                                  'AI-managed scheduling for relationship events',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => const CoupleCalendarScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
+                              ),
+                              icon: Icons.show_chart,
+                              title: 'Compatibility Map',
+                              subtitle:
+                                  'Deep emotional interaction visualization',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) =>
+                                            const EmotionalCompatibilityScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
+                              ),
+                              icon: Icons.music_note,
+                              title: 'Mood Music',
+                              subtitle:
+                                  'Personalized playlists for emotional regulation',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const MoodMusicScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
+                              ),
+                              icon: Icons.headset,
+                              title: 'Therapist Mode',
+                              subtitle:
+                                  'Conflict analysis with improvement suggestions',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AiTherapistScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
+                              ),
+                              icon: Icons.auto_awesome,
+                              title: 'Mirror Mode',
+                              subtitle:
+                                  "Practice conversations with your partner's AI twin",
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const MirrorModeScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // ---------- Account Settings ----------
+                      const Text(
+                        'Account Settings',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      _roundedCard(
+                        child: Column(
+                          children: [
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
+                              ),
+                              icon: Icons.menu_book_outlined,
+                              title: 'Journal',
+                              subtitle: 'Capture and share special moments',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const JournalScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
+                              ),
+                              icon: Icons.card_giftcard,
+                              title: 'Gift Marketplace',
+                              subtitle: 'AI-recommended gifts and experiences',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => const GiftMarketplaceScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
+                              ),
+                              icon: Icons.emoji_events,
+                              title: 'Rewards & Badges',
+                              subtitle:
+                                  'View your earned points and achievements',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const RewardsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
+                              ),
+                              icon: Icons.privacy_tip_outlined,
+                              title: 'Privacy Dashboard',
+                              subtitle:
+                                  'Manage your data collection and privacy settings',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => const PrivacyDashboardScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Sign out
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFFFEDEE), Color(0xFFF6A5A5)],
+                              ),
+                              icon: Icons.logout,
+                              title: 'Logout Out',
+                              subtitle:
+                                  'Securely log out of your account from this device',
+                              onTap: () async {
+                                await showConfirmationDialog(
+                                  context: context,
+                                  title: "Logout",
+                                  message: "Are you sure you want to logout?",
+                                  confirmText: "Logout",
+                                  cancelText: "Cancel",
+                                  onConfirm: () async {
+                                    await logoutUser(context);
+                                  },
+                                  onCancel: () {
+                                    print("User cancelled logout");
+                                  },
+                                );
+                              },
+
+                            ),
+                            const SizedBox(height: 10),
+                            _FeatureTile(
+                              iconGradient: const LinearGradient(
+                                colors: [Color(0xFFFFEDEE), Color(0xFFF6A5A5)],
+                              ),
+                              icon: Icons.logout_outlined,
+                              title: 'Logout from All Devices',
+                              subtitle:
+                                  'Revoke all active sessions and log out from all devices',
+                              onTap: () async {
+                                await showConfirmationDialog(
+                                  context: context,
+                                  title: "Logout",
+                                  message: "Are you sure you want to logout from all device?",
+                                  confirmText: "Logout",
+                                  cancelText: "Cancel",
+                                  onConfirm: () async {
+                                    await logoutAll(context);
+                                  },
+                                  onCancel: () {
+                                    print("User cancelled logout");
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+                    ],
                   ),
-                  SizedBox(height: 6),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Grouped tiles
-              _roundedCard(
-                child: Column(
-                  children: [
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFD697EC)],
-                      ),
-                      icon: Icons.water_drop_outlined,
-                      title: 'Cycle Tracker',
-                      subtitle:
-                      'Track your menstrual cycle and hormonal mood patterns',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CycleTrackerScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFEEF4FF), Color(0xFF7599E6)],
-                      ),
-                      icon: Icons.nightlight_round,
-                      title: 'Sleep & Stress',
-                      subtitle:
-                      'Monitor your sleep quality and stress levels',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const SleepStressScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFE7FFFA), Color(0xFF7EEACC)],
-                      ),
-                      icon: Icons.monitor_heart,
-                      title: 'Sensor Tracking',
-                      subtitle:
-                      'Real-time emotional and conflict detection',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SensorTrackingScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
                 ),
-              ),
-              const SizedBox(height: 18),
-
-              // ---------- Relationship Tools header ----------
-              const Text(
-                'Relationship Tools',
-                style:
-                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-
-              // Relationship Tools grouped card
-              _roundedCard(
-                child: Column(
-                  children: [
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
-                      ),
-                      icon: Icons.calendar_today,
-                      title: 'Couple Calendar',
-                      subtitle:
-                      'AI-managed scheduling for relationship events',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CoupleCalendarScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
-                      ),
-                      icon: Icons.show_chart,
-                      title: 'Compatibility Map',
-                      subtitle:
-                      'Deep emotional interaction visualization',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const EmotionalCompatibilityScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
-                      ),
-                      icon: Icons.music_note,
-                      title: 'Mood Music',
-                      subtitle:
-                      'Personalized playlists for emotional regulation',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MoodMusicScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
-                      ),
-                      icon: Icons.headset,
-                      title: 'Therapist Mode',
-                      subtitle:
-                      'Conflict analysis with improvement suggestions',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AiTherapistScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFF6E7F9), Color(0xFFC437F3)],
-                      ),
-                      icon: Icons.auto_awesome,
-                      title: 'Mirror Mode',
-                      subtitle:
-                      "Practice conversations with your partner's AI twin",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MirrorModeScreen()),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // ---------- Account Settings ----------
-              const Text(
-                'Account Settings',
-                style:
-                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-
-              _roundedCard(
-                child: Column(
-                  children: [
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
-                      ),
-                      icon: Icons.menu_book_outlined,
-                      title: 'Journal',
-                      subtitle: 'Capture and share special moments',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const JournalScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
-                      ),
-                      icon: Icons.card_giftcard,
-                      title: 'Gift Marketplace',
-                      subtitle: 'AI-recommended gifts and experiences',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const GiftMarketplaceScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
-                      ),
-                      icon: Icons.emoji_events,
-                      title: 'Rewards & Badges',
-                      subtitle:
-                      'View your earned points and achievements',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const RewardsScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFEBC7F3), Color(0xFFD78AF1)],
-                      ),
-                      icon: Icons.privacy_tip_outlined,
-                      title: 'Privacy Dashboard',
-                      subtitle:
-                      'Manage your data collection and privacy settings',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacyDashboardScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Sign out
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFFFEDEE), Color(0xFFF6A5A5)],
-                      ),
-                      icon: Icons.logout,
-                      title: 'Sign Out',
-                      subtitle:
-                      'Securely log out of your account from this device',
-                      onTap: () async {
-                        // TODO: clear tokens and navigate to login
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FeatureTile(
-                      iconGradient: const LinearGradient(
-                        colors: [Color(0xFFFFEDEE), Color(0xFFF6A5A5)],
-                      ),
-                      icon: Icons.logout_outlined,
-                      title: 'Logout from All Devices',
-                      subtitle:
-                      'Revoke all active sessions and log out from all devices',
-                      onTap: () {
-                        // TODO: call API to revoke sessions, then sign out locally
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 18),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -668,6 +738,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+}
+Future<void> showConfirmationDialog({
+  required BuildContext context,
+  required String title,
+  required String message,
+  String confirmText = "Confirm",
+  String cancelText = "Cancel",
+  required VoidCallback onConfirm,
+  VoidCallback? onCancel,
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) {
+      return AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx, false);
+              if (onCancel != null) onCancel();
+            },
+            child: Text(cancelText),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx, true);
+              onConfirm();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(confirmText),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
+/// UNIVERSAL LOGOUT METHOD
+Future<void> logoutUser(BuildContext context) async {
+  final refreshToken = await SharedPrefs.getRefreshToken();
+  final accessToken = await SharedPrefs.getAccessToken();
+
+  if (refreshToken == null || accessToken == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Session expired! Please login.")),
+    );
+    return;
+  }
+
+  final response = await ApiHelper.postWithAuth(
+    url: ApiInterface.logout,
+    token: accessToken,
+    body: {"refreshToken": refreshToken},
+    context: context,
+    showLoader: true,
+  );
+
+  print("LOGOUT RESPONSE => $response");
+
+  if (response['success'] == true) {
+    // clear all data
+    await SharedPrefs.clearAll();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Logged out successfully")),
+    );
+    // Navigate to login
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const Login()),
+          (route) => false,
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(response['error'].toString())),
+    );
+  }
+}
+Future<void> logoutAll(BuildContext context) async {
+  final refreshToken = await SharedPrefs.getRefreshToken();
+  final accessToken = await SharedPrefs.getAccessToken();
+
+  if (refreshToken == null || accessToken == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Session expired! Please login.")),
+    );
+    return;
+  }
+
+  final response = await ApiHelper.postWithAuth(
+    url: ApiInterface.logoutAll,
+    token: accessToken,
+    body: {},
+    context: context,
+    showLoader: true,
+  );
+
+  print("LOGOUT RESPONSE => $response");
+
+  if (response['success'] == true) {
+    // clear all data
+    await SharedPrefs.clearAll();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Logged out successfully")),
+    );
+    // Navigate to login
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const Login()),
+          (route) => false,
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(response['error'].toString())),
+    );
   }
 }
 

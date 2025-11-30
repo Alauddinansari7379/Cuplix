@@ -1,6 +1,8 @@
 // lib/login/login.dart
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:app_links/app_links.dart';
 import 'package:cuplix/login/SplashScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -44,8 +46,35 @@ class _LoginPageState extends State<Login> {
 
   // secure storage (also used to write legacy keys if needed)
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
-
+  final storage = FlutterSecureStorage();
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _sub;
   @override
+  void initState() {
+    super.initState();
+    _appLinks = AppLinks();
+
+    // cold start
+    _appLinks.getInitialAppLink().then((uri) {
+      if (uri != null) _handleIncomingUri(uri);
+    }).catchError((e) => debugPrint('initial app link error: $e'));
+
+    // warm start
+    _sub = _appLinks.uriLinkStream.listen((uri) {
+      _handleIncomingUri(uri);
+    }, onError: (e) => debugPrint('uriStream error: $e'));
+  }
+  void _handleIncomingUri(Uri uri) async {
+    final access = uri.queryParameters['accessToken'];
+    final refresh = uri.queryParameters['refreshToken'];
+    if (access != null && refresh != null) {
+      await const FlutterSecureStorage().write(key: 'accessToken', value: access);
+      await const FlutterSecureStorage().write(key: 'refreshToken', value: refresh);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -54,6 +83,7 @@ class _LoginPageState extends State<Login> {
     _signInEmailController.dispose();
     _signInPasswordController.dispose();
     _otpController.dispose();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -605,8 +635,8 @@ class _LoginPageState extends State<Login> {
             ],
           ),
           child: OutlinedButton.icon(
-            onPressed: () {
-             // GoogleAuthClient.signInWithGoogleAndBackend(context);
+            onPressed: () async {
+              await GoogleAuthClient.signIn();
             },
             icon: Image.asset(
               'lib/assets/chrome.png',

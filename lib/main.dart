@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'SplashScreen.dart';
+import 'login/SplashScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
