@@ -1,9 +1,18 @@
-// lib/chat/chat_screen.dart
+// lib/dashboard/ChatScreen.dart
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../apiInterface/ApIHelper.dart';
 import '../apiInterface/ApiInterface.dart';
 import '../utils/SharedPreferences.dart';
@@ -20,7 +29,7 @@ class _ChatMessage {
   final String? clientMessageId;
   final String text;
   final bool isMe;
-  final String messageType;
+  final String messageType; // text / image / file / audio
   final String? mediaUrl;
   String status; // sent / delivered / read
   final DateTime time;
@@ -38,10 +47,9 @@ class _ChatMessage {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  // UI state
   final TextEditingController _textController = TextEditingController();
   final List<_ChatMessage> _messages = [];
-
-  // NEW: controller so we can scroll to bottom
   final ScrollController _scrollController = ScrollController();
 
   bool _loadingConnection = false;
@@ -54,13 +62,38 @@ class _ChatScreenState extends State<ChatScreen> {
   String _partnerName = "Partner";
   String? _partnerAvatarUrl;
 
+  // socket
   IO.Socket? _socket;
+
+  // typing debounce
   Timer? typingTimer;
+
+  // audio recorder
+  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
+  bool _recorderInited = false;
+  bool _isRecording = false;
+  String? _recordFilePath;
+  DateTime? _recordStartTime;
+
+  // image picker
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+    _initRecorder();
     _fetchPartnerConnection();
+  }
+
+  Future<void> _initRecorder() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      debugPrint("❌ Microphone permission not granted");
+      return;
+    }
+
+    await _recorder.openRecorder();
+    _recorderInited = true;
   }
 
   @override
@@ -69,10 +102,11 @@ class _ChatScreenState extends State<ChatScreen> {
     _socket?.dispose();
     _textController.dispose();
     _scrollController.dispose();
+    typingTimer?.cancel();
+    _recorder.closeRecorder();
     super.dispose();
   }
 
-  // Helper: always scroll list to bottom (last message)
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -86,6 +120,28 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------------------------------------------------
+  // Get current logged-in user from /users/me
+  // ---------------------------------------------------
+  Future<String?> _getCurrentUserId(String token) async {
+    try {
+      final res = await ApiHelper.getWithAuth(
+        // if you have an ApiInterface constant, you can use it here instead
+        url: ApiInterface.currentUser,
+        token: token,
+        context: context,
+        showLoader: false,
+      );
+
+      if (res == null) return null;
+      final data = res["data"] ?? res;
+      return data["id"]?.toString();
+    } catch (e) {
+      debugPrint("Error fetching current user: $e");
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------
   // 1️⃣ LOAD PARTNER CONNECTION
   // ---------------------------------------------------
   Future<void> _fetchPartnerConnection() async {
@@ -94,6 +150,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final token = await SharedPrefs.getAccessToken();
     if (token == null) return;
 
+    // First figure out who I am on this device
+    final String? myId = await _getCurrentUserId(token);
+
+    // Then fetch partner connection
     final res = await ApiHelper.getWithAuth(
       url: ApiInterface.partnerConnectionsMe,
       token: token,
@@ -108,13 +168,32 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final data = res["data"];
 
-    // Backend: user1 = partner, user2 = me
-    final partnerProfile = data["user1"]["profile"];
+    final String? user1Id = data["user1Id"]?.toString();
+    final String? user2Id = data["user2Id"]?.toString();
 
-    _partnerId = data["user1Id"]?.toString();
-    _currentUserId = data["user2Id"]?.toString();
+    Map<String, dynamic>? partnerUser;
+
+    if (myId != null && myId == user1Id) {
+      // I am user1 → partner is user2
+      _currentUserId = user1Id;
+      _partnerId = user2Id;
+      partnerUser = data["user2"];
+    } else if (myId != null && myId == user2Id) {
+      // I am user2 → partner is user1
+      _currentUserId = user2Id;
+      _partnerId = user1Id;
+      partnerUser = data["user1"];
+    } else {
+      // Fallback: assume user2 is me
+      _currentUserId = user2Id;
+      _partnerId = user1Id;
+      partnerUser = data["user1"];
+    }
+
+    final partnerProfile =
+    (partnerUser?["profile"] ?? {}) as Map<String, dynamic>;
     _partnerName = partnerProfile["name"] ?? "Partner";
-    _partnerAvatarUrl = partnerProfile["avatar"];
+    _partnerAvatarUrl = partnerProfile["avatarUrl"];
 
     setState(() => _isConnected = true);
 
@@ -191,7 +270,6 @@ class _ChatScreenState extends State<ChatScreen> {
   // ---------------------------------------------------
   // 3️⃣ FETCH MESSAGE HISTORY
   // ---------------------------------------------------
-
   Future<void> _loadMessageHistory(String token) async {
     if (_partnerId == null) return;
 
@@ -206,11 +284,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (res["success"] != true || res["data"] == null) return;
 
-    // Safely read list of raw messages
     final data = res["data"] as Map<String, dynamic>;
     final rawList = (data["messages"] as List?) ?? [];
 
-    // Build a *local* list first
     final List<_ChatMessage> loaded = [];
     for (final raw in rawList) {
       final m = raw as Map<String, dynamic>;
@@ -221,7 +297,7 @@ class _ChatScreenState extends State<ChatScreen> {
           id: (m["id"] ?? m["_id"]).toString(),
           clientMessageId: m["clientMessageId"],
           text: m["content"] ?? "",
-          isMe: senderId != _partnerId,
+          isMe: senderId == _currentUserId, // ✅ my messages
           messageType: m["messageType"] ?? "text",
           mediaUrl: m["mediaUrl"],
           status: m["status"] ?? "sent",
@@ -230,19 +306,17 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    // Now update state in one go
     setState(() {
       _messages
         ..clear()
         ..addAll(loaded);
     });
 
-    _scrollToBottom(); // make sure last message is visible
+    _scrollToBottom();
   }
 
-
   // ---------------------------------------------------
-  // 4️⃣ HANDLE INCOMING MESSAGE (DEDUP + STATUS UPDATE)
+  // 4️⃣ HANDLE INCOMING MESSAGE
   // ---------------------------------------------------
   void _handleIncomingMessage(dynamic raw) {
     final data = Map<String, dynamic>.from(raw as Map);
@@ -251,7 +325,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final clientMessageId = data["clientMessageId"]?.toString();
     final messageId = (data["id"] ?? data["_id"]).toString();
 
-    // 1. If already have this message -> update, don't add
     final existingIndex = _messages.indexWhere(
           (m) =>
       m.id == messageId ||
@@ -268,18 +341,17 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // 2. New message
-    final isMe = senderId != null && senderId != _partnerId;
+    final isMe = senderId != null && senderId == _currentUserId; // ✅
 
     final msg = _ChatMessage(
       id: messageId,
       clientMessageId: clientMessageId,
       text: data["content"] ?? "",
       isMe: isMe,
-      messageType: data["messageType"],
+      messageType: data["messageType"] ?? "text",
       mediaUrl: data["mediaUrl"],
       status: data["status"] ?? "sent",
-      time: DateTime.parse(data["createdAt"]),
+      time: DateTime.tryParse(data["createdAt"] ?? "") ?? DateTime.now(),
     );
 
     setState(() => _messages.add(msg));
@@ -291,7 +363,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------------------------------------------------
-  // 5️⃣ SEND MESSAGE
+  // 5️⃣ SEND TEXT MESSAGE
   // ---------------------------------------------------
   void _sendMessage() async {
     final text = _textController.text.trim();
@@ -319,16 +391,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     _socket!.emit("send-message", {
-      "receiverId": _partnerId,
+      "receiverId": _partnerId, // always the other person
       "content": text,
       "messageType": "text",
       "clientMessageId": clientMessageId,
     });
   }
 
-  // ---------------------------------------------------
-  // 6️⃣ MARK AS READ
-  // ---------------------------------------------------
   Future<void> _markMessageAsRead(List<String> ids) async {
     final token = await SharedPrefs.getAccessToken();
     if (token == null) return;
@@ -341,7 +410,222 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------------------------------------------------
-  // UI BELOW THIS POINT
+  // Emoji / Attach / Camera / Mic handlers
+  // ---------------------------------------------------
+  void _onEmojiPressed() {
+    debugPrint("Emoji button pressed");
+  }
+
+  Future<void> _onAttachFilePressed() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: false);
+      if (result == null || result.files.isEmpty) return;
+
+      final path = result.files.single.path;
+      if (path == null) return;
+
+      await _sendFileMessage(path);
+    } catch (e) {
+      debugPrint("Error picking file: $e");
+    }
+  }
+
+  Future<void> _sendFileMessage(String filePath) async {
+    if (_socket == null || _partnerId == null) return;
+
+    final file = File(filePath);
+    if (!file.existsSync()) return;
+
+    final clientMessageId =
+        "file-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}";
+
+    final fileName = file.path.split(Platform.pathSeparator).last;
+
+    final optimistic = _ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      text: fileName,
+      isMe: true,
+      messageType: "file",
+      mediaUrl: file.path,
+      status: "sent",
+      time: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.add(optimistic);
+    });
+    _scrollToBottom();
+
+    _socket!.emit("send-message", {
+      "receiverId": _partnerId,
+      "content": "File: $fileName",
+      "messageType": "text",
+      "clientMessageId": clientMessageId,
+    });
+  }
+
+  Future<void> _onCameraPressed() async {
+    try {
+      final XFile? picked = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+
+      await _sendImageMessage(picked.path);
+    } catch (e) {
+      debugPrint("Error opening camera: $e");
+    }
+  }
+
+  Future<void> _sendImageMessage(String filePath) async {
+    if (_socket == null || _partnerId == null) return;
+
+    final file = File(filePath);
+    if (!file.existsSync()) return;
+
+    final clientMessageId =
+        "image-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}";
+
+    final fileName = file.path.split(Platform.pathSeparator).last;
+
+    final optimistic = _ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      text: "",
+      isMe: true,
+      messageType: "image",
+      mediaUrl: file.path,
+      status: "sent",
+      time: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.add(optimistic);
+    });
+    _scrollToBottom();
+
+    _socket!.emit("send-message", {
+      "receiverId": _partnerId,
+      "content": "[Image] $fileName",
+      "messageType": "text",
+      "clientMessageId": clientMessageId,
+    });
+  }
+
+  // 🎤 MIC: RECORD + SEND VOICE MESSAGE
+  Future<void> _onMicPressed() async {
+    if (_partnerId == null) return;
+    if (!_recorderInited) {
+      debugPrint("Recorder not initialized");
+      return;
+    }
+
+    if (_isRecording) {
+      final path = await _stopRecording();
+      if (path != null) {
+        await _sendVoiceMessage(path);
+      }
+      return;
+    }
+
+    await _startRecording();
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        debugPrint("❌ Microphone permission not granted");
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final filePath =
+          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+
+      await _recorder.startRecorder(
+        toFile: filePath,
+        codec: Codec.aacADTS,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordFilePath = filePath;
+        _recordStartTime = DateTime.now();
+      });
+      debugPrint("🎙️ Recording started → $filePath");
+    } catch (e) {
+      debugPrint("Error starting recording: $e");
+    }
+  }
+
+  Future<String?> _stopRecording() async {
+    try {
+      final path = await _recorder.stopRecorder();
+      debugPrint("🛑 Recording stopped: $path");
+      setState(() {
+        _isRecording = false;
+      });
+      return path ?? _recordFilePath;
+    } catch (e) {
+      debugPrint("Error stopping recording: $e");
+      setState(() {
+        _isRecording = false;
+      });
+      return null;
+    }
+  }
+
+  Future<void> _sendVoiceMessage(String filePath) async {
+    if (_socket == null || _partnerId == null) return;
+
+    final file = File(filePath);
+    if (!file.existsSync()) {
+      debugPrint("Voice file does not exist: $filePath");
+      return;
+    }
+
+    int seconds = 0;
+    if (_recordStartTime != null) {
+      seconds = DateTime.now().difference(_recordStartTime!).inSeconds;
+      if (seconds < 1) seconds = 1;
+    }
+    final label =
+    seconds > 0 ? "Voice note • ${seconds}s" : "Voice note";
+
+    final clientMessageId =
+        "voice-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}";
+
+    final optimistic = _ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      text: label,
+      isMe: true,
+      messageType: "audio",
+      mediaUrl: file.path,
+      status: "sent",
+      time: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.add(optimistic);
+    });
+    _scrollToBottom();
+
+    _socket!.emit("send-message", {
+      "receiverId": _partnerId,
+      "content": label,
+      "messageType": "text",
+      "clientMessageId": clientMessageId,
+    });
+  }
+
+  // ---------------------------------------------------
+  // UI
   // ---------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -353,81 +637,79 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        titleSpacing: 0, // you can also remove this line if you prefer default spacing
-        title: Padding(
-          padding: const EdgeInsets.only(left: 12), // 👈 add margin from the start
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage: _partnerAvatarUrl != null
-                    ? NetworkImage(_partnerAvatarUrl!)
-                    : null,
-                child: _partnerAvatarUrl == null
-                    ? Text(
-                  _partnerName.isNotEmpty
-                      ? _partnerName[0].toUpperCase()
-                      : 'P',
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: primaryText),
+              onPressed: () => Navigator.pop(context),
+            ),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage: _partnerAvatarUrl != null
+                  ? NetworkImage(_partnerAvatarUrl!)
+                  : null,
+              child: _partnerAvatarUrl == null
+                  ? Text(
+                _partnerName.isNotEmpty
+                    ? _partnerName[0].toUpperCase()
+                    : 'P',
+                style: const TextStyle(
+                  color: primaryText,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _partnerName,
                   style: const TextStyle(
                     color: primaryText,
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                )
-                    : null,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _partnerName,
-                    style: const TextStyle(
-                      color: primaryText,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _partnerOnline
-                              ? Colors.green
-                              : Colors.grey.shade400,
-                          shape: BoxShape.circle,
-                        ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color:
+                        _partnerOnline ? Colors.green : Colors.grey.shade400,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _partnerOnline ? "Online" : "Offline",
-                        style: const TextStyle(
-                          color: mutedText,
-                          fontSize: 12,
-                        ),
-                      )
-                    ],
-                  )
-                ],
-              )
-            ],
-          ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _partnerOnline ? "Online" : "Offline",
+                      style: const TextStyle(
+                        color: mutedText,
+                        fontSize: 12,
+                      ),
+                    )
+                  ],
+                )
+              ],
+            )
+          ],
         ),
       ),
-
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,           // ⬅️ controller added
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
             ),
           ),
-
           if (_partnerTyping)
             const Padding(
               padding: EdgeInsets.only(bottom: 6),
@@ -436,16 +718,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: TextStyle(color: Colors.grey),
               ),
             ),
-
           _buildInputBar(),
         ],
       ),
     );
   }
 
-  // INPUT BAR ---------------------------------------------------
   Widget _buildInputBar() {
-    final text = _textController.text.trim();
+    final hasText = _textController.text.trim().isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -453,49 +733,117 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _textController,
-              maxLines: 4,
-              minLines: 1,
-              onChanged: (v) {
-                if (v.isNotEmpty) {
-                  _socket?.emit(
-                    "typing",
-                    {"partnerId": _partnerId, "isTyping": true},
-                  );
-                }
-                typingTimer?.cancel();
-                typingTimer = Timer(const Duration(seconds: 2), () {
-                  _socket?.emit(
-                    "typing",
-                    {"partnerId": _partnerId, "isTyping": false},
-                  );
-                });
-                setState(() {});
-              },
-              decoration: InputDecoration(
-                hintText: "Type a message...",
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: const Color(0xFFE0C9F0),
+                  width: 1.2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: _onEmojiPressed,
+                    icon: const Icon(
+                      Icons.emoji_emotions_outlined,
+                      size: 22,
+                      color: Color(0xFF8A7C9B),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      minLines: 1,
+                      maxLines: 4,
+                      onChanged: (v) {
+                        if (v.isNotEmpty) {
+                          _socket?.emit(
+                            "typing",
+                            {"partnerId": _partnerId, "isTyping": true},
+                          );
+                        }
+                        typingTimer?.cancel();
+                        typingTimer = Timer(const Duration(seconds: 2), () {
+                          _socket?.emit(
+                            "typing",
+                            {"partnerId": _partnerId, "isTyping": false},
+                          );
+                        });
+                        setState(() {});
+                      },
+                      decoration: const InputDecoration(
+                        hintText: "Type a message...",
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _onAttachFilePressed,
+                    icon: const Icon(
+                      Icons.attach_file,
+                      size: 20,
+                      color: Color(0xFF8A7C9B),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: _onCameraPressed,
+                    icon: const Icon(
+                      Icons.camera_alt_outlined,
+                      size: 20,
+                      color: Color(0xFF8A7C9B),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           GestureDetector(
-            onTap: text.isEmpty ? null : _sendMessage,
-            child: const CircleAvatar(
-              radius: 25,
-              backgroundColor: Colors.purple,
+            onTap: () {
+              if (hasText) {
+                _sendMessage();
+              } else {
+                _onMicPressed();
+              }
+            },
+            child: Container(
+              height: 46,
+              width: 46,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFFF05A94), Color(0xFFE83C7A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
               child: Icon(
-                Icons.send,
+                hasText
+                    ? Icons.send
+                    : (_isRecording ? Icons.stop : Icons.mic),
                 color: Colors.white,
-                size: 20,
+                size: 22,
               ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -503,7 +851,7 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// MESSAGE BUBBLE WIDGET  (time + ticks)
+// MESSAGE BUBBLE
 // ---------------------------------------------------------------------------
 
 class _MessageBubble extends StatelessWidget {
@@ -529,6 +877,15 @@ class _MessageBubble extends StatelessWidget {
     final bgColor = isMe ? const Color(0xFFE4C8FF) : Colors.white;
     const textColor = Color(0xFF2C2139);
 
+    final lower = message.text.toLowerCase();
+    final isAudio = message.messageType == 'audio' ||
+        lower.startsWith('voice note') ||
+        lower.startsWith('voice message');
+    final isFile =
+        message.messageType == 'file' || lower.startsWith('file:');
+    final isImage =
+        message.messageType == 'image' || lower.startsWith('[image]');
+
     IconData? tickIcon;
     Color tickColor = Colors.grey;
 
@@ -552,6 +909,131 @@ class _MessageBubble extends StatelessWidget {
       }
     }
 
+    Widget content;
+
+    if (isImage) {
+      if (message.mediaUrl != null) {
+        final file = File(message.mediaUrl!);
+        content = ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            file,
+            width: 200,
+            height: 200,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image, color: textColor),
+          ),
+        );
+      } else {
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.image, size: 18, color: textColor),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                message.text,
+                style: const TextStyle(color: textColor, fontSize: 15),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      }
+    } else if (isFile) {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.attach_file, size: 18, color: textColor),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message.text,
+              style: const TextStyle(color: textColor, fontSize: 15),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    } else if (isAudio) {
+      final label =
+      message.text.isNotEmpty ? message.text : 'Voice note';
+      final String? url = message.mediaUrl;
+
+      Future<void> playAudio() async {
+        if (url == null || url.isEmpty) return;
+        final player = AudioPlayer();
+        try {
+          if (url.startsWith('http')) {
+            await player.play(UrlSource(url));
+          } else {
+            await player.play(DeviceFileSource(url));
+          }
+        } catch (e) {
+          debugPrint("Error playing audio: $e");
+        }
+      }
+
+      content = InkWell(
+        onTap: url == null ? null : playAudio,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              const Icon(Icons.play_arrow,
+                  size: 22, color: Colors.black54),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 3,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 40,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurpleAccent,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      content = Text(
+        message.text,
+        style: const TextStyle(color: textColor, fontSize: 15),
+      );
+    }
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -569,10 +1051,7 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment:
           isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              message.text,
-              style: const TextStyle(color: textColor, fontSize: 15),
-            ),
+            content,
             const SizedBox(height: 4),
             Row(
               mainAxisSize: MainAxisSize.min,

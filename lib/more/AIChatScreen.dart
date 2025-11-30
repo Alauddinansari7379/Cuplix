@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:file_picker/file_picker.dart';
 
 // TODO: put your real Gemini key here (keep it secret, don't commit to git)
-const String _geminiApiKey = 'AIzaSyD7VY0hKiFiWxGQ5-abs4Rjomgph3q_gYg';
+const String _geminiApiKey = 'AIzaSyC0I-lxRd56zaunsVqfb2hNoq9dzyvyWms';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -22,13 +21,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final List<_Message> _messages = [];
   bool _sending = false;
 
-  // ---------- voice / speech-to-text ----------
-  late stt.SpeechToText _speech;
-  bool _speechAvailable = false;
+  // ---------- voice / “speech-to-text” state (UI only now) ----------
   bool _isListening = false;
-  String? _localeId;
   String _lastError = '';
-  String _lastStatus = '';
 
   @override
   void initState() {
@@ -44,85 +39,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
         time: DateTime.now(),
       ),
     );
-
-    _speech = stt.SpeechToText();
-    _initSpeech();
-  }
-
-  Future<void> _initSpeech() async {
-    _speechAvailable = await _speech.initialize(
-      onStatus: (status) {
-        _lastStatus = status;
-        if (mounted) setState(() {});
-      },
-      onError: (error) {
-        _lastError = error.errorMsg;
-        if (mounted) {
-          setState(() {});
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Speech error: ${error.errorMsg}')),
-          );
-        }
-      },
-      debugLogging: true,
-    );
-
-    if (_speechAvailable) {
-      final locales = await _speech.locales();
-      final systemLocale = await _speech.systemLocale();
-      _localeId =
-          systemLocale?.localeId ?? (locales.isNotEmpty ? locales.first.localeId : null);
-    }
-
-    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
-    _speech.stop();
     super.dispose();
   }
 
-  // ---------- voice handlers ----------
-
+  // ---------- mic handler (no plugin, just UI) ----------
   Future<void> _onMicPressed() async {
-    if (!_speechAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Speech recognition not available or permission denied.'),
+    // fake toggle so the “Listening…” chip can still show
+    setState(() => _isListening = !_isListening);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Speech recognition is disabled in this build (no plugin).',
         ),
-      );
-      return;
-    }
-
-    if (_isListening) {
-      await _speech.stop();
-      setState(() => _isListening = false);
-    } else {
-      setState(() => _isListening = true);
-
-      await _speech.listen(
-        localeId: _localeId,
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 5),
-        partialResults: true,
-        onResult: (result) {
-          if (!mounted) return;
-          setState(() {
-            _controller.text = result.recognizedWords;
-            _controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: _controller.text.length),
-            );
-            if (result.finalResult) {
-              _isListening = false;
-            }
-          });
-        },
-        listenMode: stt.ListenMode.dictation,
-      );
-    }
+      ),
+    );
   }
 
   // ---------- file picker handler ----------
@@ -171,12 +108,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _messages.add(userMsg);
     });
     _scrollToBottom();
-
-    // stop listening if still on
-    if (_isListening) {
-      await _speech.stop();
-      setState(() => _isListening = false);
-    }
 
     try {
       final reply = await _callGemini();
@@ -388,7 +319,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                   ),
                                 ),
                                 Text(
-                                  emotionAnalysisOn ? 'On • More empathetic' : 'Off • Straight advice',
+                                  emotionAnalysisOn
+                                      ? 'On • More empathetic'
+                                      : 'Off • Straight advice',
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.white.withOpacity(0.8),
@@ -402,7 +335,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               onChanged: (v) =>
                                   setState(() => emotionAnalysisOn = v),
                               activeColor: Colors.white,
-                              activeTrackColor: Colors.white.withOpacity(0.4),
+                              activeTrackColor:
+                              Colors.white.withOpacity(0.4),
                               inactiveThumbColor: Colors.white,
                               inactiveTrackColor:
                               Colors.white.withOpacity(0.2),
@@ -421,15 +355,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             color: Colors.white.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Row(
+                          child: const Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.mic,
                                 size: 16,
                                 color: Colors.white,
                               ),
-                              const SizedBox(width: 6),
-                              const Text(
+                              SizedBox(width: 6),
+                              Text(
                                 'Listening...',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -475,8 +409,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ],
                   ),
                   child: Padding(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
                     child: ListView.builder(
                       controller: _scrollController,
                       physics: const BouncingScrollPhysics(),
@@ -525,7 +459,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 }
 
-// ================= UI widgets =================
+// ================= UI widgets (unchanged) =================
 
 class HeaderSection extends StatelessWidget {
   const HeaderSection({super.key});

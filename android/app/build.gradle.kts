@@ -22,7 +22,7 @@ android {
         applicationId = "com.cuplix.cuplixapp"
 
         // REQUIRED BECAUSE `record_android` NEEDS API 23+
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
