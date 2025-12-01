@@ -6,6 +6,7 @@ import 'package:fluttertoast/fluttertoast.dart';
  import '../apiInterface/ApiInterface.dart';
  import '../apiInterface/ApIHelper.dart';
 import '../login/Login.dart';
+import '../login/OnboardingRoleSelection.dart';
 import '../login/ProfileCompletionPage.dart';
 
 class ProfileChecker {
@@ -106,19 +107,27 @@ class ProfileChecker {
       final dateOfBirth = (profile['dateOfBirth'] ?? '').toString().trim();
       final mobile = (profile['mobile'] ?? '').toString().trim();
       final name = (profile['name'] ?? '').toString().trim();
+
       await SharedPrefs.setName(name);
       await SharedPrefs.setNumber(mobile);
 
       debugPrint('ProfileChecker.checkAndPrompt -> Name $name');
 
-      bool missing = avatar.isEmpty || avatar.toLowerCase() == 'null';
+      // 👉 Only check name + DOB now
+      bool missing;
+
       if (checkAll) {
-        missing = missing ||
-            name.isEmpty ||
-            dateOfBirth.isEmpty ||
-            mobile.isEmpty;
+        // When you want full check: both must be present
+        final isNameMissing = name.isEmpty || name.toLowerCase() == 'null';
+        final isDobMissing =
+            dateOfBirth.isEmpty || dateOfBirth.toLowerCase() == 'null';
+        missing = isNameMissing || isDobMissing;
+      } else {
+        // Minimal check (you can customize this)
+        missing = name.isEmpty || name.toLowerCase() == 'null';
       }
-      debugPrint('ProfileChecker.checkAndPrompt -> Profile complete ✅');
+
+      debugPrint('ProfileChecker.checkAndPrompt -> Profile missing: $missing');
 
       if (!missing) {
         debugPrint('ProfileChecker.checkAndPrompt -> Profile complete ✅');
@@ -133,7 +142,7 @@ class ProfileChecker {
           return AlertDialog(
             title: const Text('Complete Your Profile'),
             content: const Text(
-              'Your profile appears incomplete. Please update your avatar and details to continue.',
+              'Your profile appears incomplete. Please update your name and date of birth to continue.',
             ),
             actions: [
               TextButton(
@@ -150,14 +159,15 @@ class ProfileChecker {
       );
 
       if (action == 'update') {
+        String? email = await SharedPrefs.getEmail();
         final updated = await Navigator.push<bool?>(
           context,
           MaterialPageRoute(
-            builder: (_) => ProfileCompletionPage(existingProfile: profile),
+            builder: (_) => OnboardingRoleSelection(userEmail: email ?? ""),
           ),
         );
         debugPrint(
-            'ProfileChecker.checkAndPrompt -> ProfileCompletionPage returned: $updated');
+            'ProfileChecker.checkAndPrompt -> Update returned: $updated');
         return updated ?? false;
       } else {
         debugPrint('ProfileChecker.checkAndPrompt -> user chose Later');
@@ -168,6 +178,7 @@ class ProfileChecker {
       return null;
     }
   }
+
 
   /// Shows a short toast message
   static void _showToast(String message) {

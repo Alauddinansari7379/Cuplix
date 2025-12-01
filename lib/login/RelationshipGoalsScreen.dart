@@ -119,8 +119,8 @@ class _RelationshipGoalsScreenState extends State<RelationshipGoalsScreen> {
       "expectations": prev['expectations'],
       "communicationStyle": prev['communicationStyle'],
       "loveLanguage": prev['loveLanguage'],
-      "relationshipGoals": _selectedIndices.map((i) => _goals[i]).toList(),
-      "email": widget.email,
+      // "relationshipGoals": _selectedIndices.map((i) => _goals[i]).toList(),
+      // "email": widget.email,
     };
 
     // remove nulls to keep payload clean

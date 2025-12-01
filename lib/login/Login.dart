@@ -279,13 +279,13 @@ class _LoginPageState extends State<Login> {
       );
       // Optionally switch to sign-in or clear fields:
       setState(() => isSignIn = true);
-      // navigate to onboarding role selection
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OnboardingRoleSelection(userEmail: email),
-        ),
-      );
+      // // navigate to onboarding role selection
+      // Navigator.pushReplacement(
+      //   context,
+      //   MaterialPageRoute(
+      //     builder: (context) => OnboardingRoleSelection(userEmail: email),
+      //   ),
+      // );
     } else {
       final err = result['error'] ?? 'Registration failed';
       ScaffoldMessenger.of(
