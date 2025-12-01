@@ -21,13 +21,14 @@ android {
     defaultConfig {
         applicationId = "com.cuplix.cuplixapp"
 
-        // REQUIRED BECAUSE `record_android` NEEDS API 23+
-        minSdk = flutter.minSdkVersion
+        // Set minSdk directly (Kotlin DSL)
+        minSdk = 24
 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
+
 
     buildTypes {
         release {

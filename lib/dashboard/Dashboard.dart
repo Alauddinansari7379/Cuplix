@@ -46,7 +46,7 @@ class _DashboardState extends State<Dashboard> {
       _loadProfile();
     });
     _loadPartnerConnection();
-    _loadUserName();
+
   }
 
   Future<void> _loadProfile() async {
@@ -56,8 +56,29 @@ class _DashboardState extends State<Dashboard> {
       // Do something with the profile
       print("Profile loaded: $profile");
 
-      // Optional: check if profile is incomplete
-      ProfileChecker.checkAndPrompt(context: context, profile: profile);
+      // 1️⃣ Get name from profile
+      final nameFromProfile = (profile['name'] ?? '').toString();
+
+      // 2️⃣ Update state immediately so UI shows it on first login
+      if (mounted) {
+        setState(() {
+          _userName = nameFromProfile;
+        });
+      }
+
+      // 3️⃣ Optionally save to SharedPrefs for future launches
+      await SharedPrefs.setName(nameFromProfile);
+
+      print('_loadUserName "e_loadUserName"');
+
+      // 4️⃣ (Optional) You DON'T need _loadUserName() here anymore
+      // _loadUserName();  // remove this call
+
+      // 5️⃣ Check incomplete profile
+      ProfileChecker.checkAndPrompt(
+        context: context,
+        profile: profile,
+      );
     }
   }
 
