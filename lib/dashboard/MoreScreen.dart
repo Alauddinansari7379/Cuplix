@@ -1,3 +1,4 @@
+import 'package:cuplix/dashboard/ChatScreen.dart';
 import 'package:cuplix/more/AffectionBuilderScreen.dart';
 import 'package:cuplix/more/AiAgentScreen.dart';
 import 'package:cuplix/more/AiTherapistScreen.dart';
@@ -114,9 +115,17 @@ class MoreScreen extends StatelessWidget {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.05,
                 children: [
-                  const _FeatureTile(
+                  _FeatureTile(
                     icon: Icons.chat_bubble,
                     title: 'Partner Chat',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                          MaterialPageRoute(
+                          builder: (context) => const ChatScreen(),
+                        ),
+                      );
+                    },
                   ),
                   _FeatureTile(
                     icon: Icons.menu_book_outlined,

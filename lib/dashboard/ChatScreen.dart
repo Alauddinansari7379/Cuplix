@@ -637,13 +637,9 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        titleSpacing: 25,
+        titleSpacing: 20,
         title: Row(
           children: [
-            // IconButton(
-            //   icon: const Icon(Icons.arrow_back, color: primaryText),
-            //   onPressed: () => Navigator.pop(context),
-            // ),
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade200,
