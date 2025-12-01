@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:cuplix/utils/SharedPreferences.dart';
 
-// TODO: put your real Gemini key here (keep it secret, don't commit to git)
-const String _geminiApiKey = 'AIzaSyC0I-lxRd56zaunsVqfb2hNoq9dzyvyWms';
+// Cuplix AI backend base URL
+const String _aiBaseUrl = 'https://ai.cuplix.in';
+// const String _aiBaseUrl = 'http://localhost:8001';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -21,6 +23,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final List<_Message> _messages = [];
   bool _sending = false;
 
+  // ---- text-chat session id (for continuing the same conversation) ----
+  String? _sessionId;
+
   // ---------- voice / “speech-to-text” state (UI only now) ----------
   bool _isListening = false;
   String _lastError = '';
@@ -29,7 +34,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   void initState() {
     super.initState();
 
-    final greeting =
+    const greeting =
         "Hi! I'm here to help you strengthen your relationship. How are you feeling today?";
 
     _messages.add(
@@ -50,7 +55,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   // ---------- mic handler (no plugin, just UI) ----------
   Future<void> _onMicPressed() async {
-    // fake toggle so the “Listening…” chip can still show
     setState(() => _isListening = !_isListening);
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -73,7 +77,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final fileName = picked.name;
       final currentText = _controller.text.trim();
 
-      // Combine typed text (if any) with file info and send as one message
       final textToSend = currentText.isEmpty
           ? 'Shared a file: $fileName'
           : '$currentText\n\n[File attached: $fileName]';
@@ -89,7 +92,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  // ---------- chat / Gemini logic ----------
+  // ---------- chat / Cuplix AI logic ----------
 
   Future<void> _sendUserMessage(String? overrideText) async {
     final text = (overrideText ?? _controller.text).trim();
@@ -110,11 +113,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await _callGemini();
+      // now returns ChatResponse
+      final reply = await _callCuplixTextChat(); // uses /ai/text-chat/send
 
       final aiMsg = _Message(
         role: 'assistant',
-        content: reply,
+        content: reply.response,
         time: DateTime.now(),
       );
 
@@ -125,19 +129,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _scrollToBottom();
     } catch (e) {
       final err = e.toString();
+      debugPrint('Cuplix AI error: $err');
+
       String friendly;
 
-      if (err.contains('RESOURCE_EXHAUSTED') ||
-          err.contains('rateLimitExceeded')) {
+      if (err.contains('AUTH_REQUIRED')) {
         friendly =
-        'Gemini API rate limit or quota reached. Please wait a bit and try again.';
-      } else if (err.contains('PERMISSION_DENIED') ||
-          err.contains('API key not valid')) {
+        'Your session looks invalid or expired. Please log in again to use Cuplix AI.\n\nDetails: $err';
+      } else if (err.contains('BACKEND_ERROR')) {
         friendly =
-        'Your Gemini API key seems invalid or not authorized. Please check it in Google AI Studio.';
+        'Cuplix AI returned an error. Please try again.\n\nDetails: $err';
       } else {
         friendly =
-        'Sorry, something went wrong while talking to the AI. Please try again.';
+        'Sorry, something went wrong while talking to Cuplix AI.\n\nDetails: $err';
       }
 
       if (!mounted) return;
@@ -158,85 +162,102 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  Future<String> _callGemini() async {
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-    );
-
-    final systemContent = emotionAnalysisOn
-        ? 'You are a warm, empathetic relationship coach. '
-        'Give short, supportive answers (3–6 sentences) and include emotional insight.'
-        : 'You are a concise relationship coach. Give short, practical answers (2–4 sentences).';
-
-    final contents = <Map<String, dynamic>>[];
-
-    final systemInstruction = {
-      'role': 'user',
-      'parts': [
-        {'text': systemContent},
-      ],
-    };
-
-    for (final m in _messages) {
-      final role = m.role == 'user' ? 'user' : 'model';
-      contents.add({
-        'role': role,
-        'parts': [
-          {'text': m.content},
-        ],
-      });
+  /// Calls Cuplix Text Chat endpoint:
+  /// POST /ai/text-chat/send
+  ///
+  /// - Content-Type: multipart/form-data
+  /// - Fields: message (and session_id if we have one)
+  ///
+  /// Response:
+  /// {
+  ///   "response": "AI text response",
+  ///   "session_id": "uuid-string",
+  ///   "message_id": "...",
+  ///   "timestamp": "...",
+  ///   "audio_response": null,
+  ///   "transcription": null
+  /// }
+  Future<ChatResponse> _callCuplixTextChat() async {
+    // 1) Get JWT token
+    final token = await SharedPrefs.getAccessToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('AUTH_REQUIRED: Missing auth token');
     }
 
-    final body = jsonEncode({
-      'systemInstruction': systemInstruction,
-      'contents': contents,
-      'generationConfig': {
-        'temperature': 0.7,
-      },
-    });
-
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': _geminiApiKey,
-      },
-      body: body,
+    // 2) Take last user message
+    final lastUserMessage = _messages.lastWhere(
+          (m) => m.role == 'user',
+      orElse: () => _Message(
+        role: 'user',
+        content: '',
+        time: DateTime.now(),
+      ),
     );
+
+    var messageText = lastUserMessage.content.trim();
+    if (messageText.isEmpty) {
+      throw Exception('No user message to send.');
+    }
+
+    // Optional: hint to the model about style
+    if (emotionAnalysisOn) {
+      messageText =
+      '[mode: empathetic, emotion_analysis_on]\n$messageText';
+    } else {
+      messageText =
+      '[mode: direct_advice, emotion_analysis_off]\n$messageText';
+    }
+
+    // 3) Build multipart/form-data request for /ai/text-chat/send
+    final uri = Uri.parse('$_aiBaseUrl/ai/text-chat/send');
+    final request = http.MultipartRequest('POST', uri);
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    // required text field
+    request.fields['message'] = messageText;
+
+    // continue same session if we already have one
+    if (_sessionId != null && _sessionId!.isNotEmpty) {
+      request.fields['session_id'] = _sessionId!;
+    }
+
+    // if you ever want audio back:
+    // request.fields['want_audio_response'] = 'false';
+
+    // send
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    debugPrint('Cuplix AI /ai/text-chat/send status: ${response.statusCode}');
+    debugPrint('Cuplix AI /ai/text-chat/send body: ${response.body}');
+
+    // 4) Handle errors
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw Exception('AUTH_REQUIRED: ${response.body}');
+    }
 
     if (response.statusCode != 200) {
-      try {
-        final errJson = jsonDecode(response.body);
-        throw Exception(
-            'Gemini error ${response.statusCode}: ${errJson.toString()}');
-      } catch (_) {
-        throw Exception(
-            'Gemini error ${response.statusCode}: ${response.body}');
-      }
+      throw Exception(
+        'BACKEND_ERROR ${response.statusCode}: ${response.body}',
+      );
     }
 
+    // 5) Parse OK response into ChatResponse
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final candidates = decoded['candidates'] as List<dynamic>?;
+    final chatResponse = ChatResponse.fromJson(decoded);
 
-    if (candidates == null || candidates.isEmpty) {
-      throw Exception('No candidates returned from Gemini');
+    // save session id for future messages
+    if (chatResponse.sessionId != null &&
+        chatResponse.sessionId!.isNotEmpty) {
+      _sessionId = chatResponse.sessionId!;
     }
 
-    final content = candidates.first['content'];
-    final parts = content?['parts'] as List<dynamic>?;
-
-    if (parts == null || parts.isEmpty) {
-      throw Exception('No parts in Gemini response');
+    if (chatResponse.response.trim().isEmpty) {
+      throw Exception('Empty response from Cuplix AI');
     }
 
-    final text =
-    parts.map((p) => p['text']?.toString() ?? '').join('\n').trim();
-
-    if (text.isEmpty) {
-      throw Exception('Empty text from Gemini');
-    }
-
-    return text;
+    return chatResponse;
   }
 
   void _scrollToBottom() {
@@ -798,9 +819,12 @@ class QuickSuggestions extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              SuggestionChip('I need help with communication', onTapSuggestion),
-              SuggestionChip('Feeling disconnected lately', onTapSuggestion),
-              SuggestionChip('Want to plan a date night', onTapSuggestion),
+              SuggestionChip(
+                  'I need help with communication', onTapSuggestion),
+              SuggestionChip(
+                  'Feeling disconnected lately', onTapSuggestion),
+              SuggestionChip(
+                  'Want to plan a date night', onTapSuggestion),
               SuggestionChip(
                 'Need advice on conflict resolution',
                 onTapSuggestion,
@@ -846,4 +870,34 @@ class _Message {
     required this.content,
     required this.time,
   });
+}
+
+/// Model for /ai/text-chat/send response
+class ChatResponse {
+  final String response;
+  final String? sessionId;
+  final String? messageId;
+  final String? timestamp;
+  final String? audioResponse;
+  final String? transcription;
+
+  ChatResponse({
+    required this.response,
+    this.sessionId,
+    this.messageId,
+    this.timestamp,
+    this.audioResponse,
+    this.transcription,
+  });
+
+  factory ChatResponse.fromJson(Map<String, dynamic> json) {
+    return ChatResponse(
+      response: json['response']?.toString() ?? '',
+      sessionId: json['session_id']?.toString(),
+      messageId: json['message_id']?.toString(),
+      timestamp: json['timestamp']?.toString(),
+      audioResponse: json['audio_response']?.toString(),
+      transcription: json['transcription']?.toString(),
+    );
+  }
 }

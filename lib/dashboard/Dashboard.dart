@@ -1,13 +1,24 @@
 import 'package:cuplix/apiInterface/ApiInterface.dart';
+import 'package:cuplix/dashboard/CoupleCalendarScreen.dart';
 import 'package:cuplix/dashboard/InvitePartnerScreen.dart';
 import 'package:cuplix/dashboard/JournalScreen.dart';
 import 'package:cuplix/dashboard/MoreScreen.dart';
+import 'package:cuplix/dashboard/PrivacyDashboardScreen.dart';
 import 'package:cuplix/dashboard/ProfileScreen.dart';
 import 'package:cuplix/dashboard/UpgradeToCuplixScreen.dart';
 import 'package:cuplix/dashboard/profile_checker.dart';
+import 'package:cuplix/login/RelationshipGoalsScreen.dart';
+import 'package:cuplix/more/AIChatScreen.dart';
+import 'package:cuplix/more/AiTherapistScreen.dart';
+import 'package:cuplix/more/CoupleJournalScreen.dart';
+import 'package:cuplix/more/MirrorModeScreen.dart';
+import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 
 import '../apiInterface/ApIHelper.dart';
+import '../login/OnboardingRoleSelection.dart';
+import '../more/AiAgentScreen.dart';
+import '../more/GiftMarketplaceScreen.dart';
 import '../utils/SharedPreferences.dart';
 import 'ChatScreen.dart';
 
@@ -35,44 +46,19 @@ class _DashboardState extends State<Dashboard> {
       _loadProfile();
     });
     _loadPartnerConnection();
-
+    _loadUserName();
   }
 
   Future<void> _loadProfile() async {
     final profile = await ProfileChecker.fetchProfile(context: context);
 
     if (profile != null) {
+      // Do something with the profile
       print("Profile loaded: $profile");
 
-      // 1️⃣ Get name from profile
-      final nameFromProfile = (profile['name'] ?? '').toString();
-
-      // 2️⃣ Update state immediately so UI shows it on first login
-      if (mounted) {
-        setState(() {
-          _userName = nameFromProfile;
-        });
-      }
-
-      // 3️⃣ Optionally save to SharedPrefs for future launches
-      await SharedPrefs.setName(nameFromProfile);
-
-      print('_loadUserName "e_loadUserName"');
-
-      // 4️⃣ (Optional) You DON'T need _loadUserName() here anymore
-      // _loadUserName();  // remove this call
-
-      // 5️⃣ Check incomplete profile
-      ProfileChecker.checkAndPrompt(
-        context: context,
-        profile: profile,
-      );
+      // Optional: check if profile is incomplete
+      ProfileChecker.checkAndPrompt(context: context, profile: profile);
     }
-  }
-
-
-    Future<String?> _getAuthToken() async {
-    return SharedPrefs.getAccessToken();
   }
 
   Future<String?> _getAuthToken() async {
@@ -90,7 +76,6 @@ class _DashboardState extends State<Dashboard> {
   /// Backend guarantee: in this endpoint, `user1` is ALWAYS the connected partner.
   /// Load current partner connection from GET /partner-connections/me
   /// Decide partner by comparing with current logged-in user from "me" API.
-
   /// Load current partner connection from GET /partner-connections/me
   /// and /users/me to reliably find the partner user.
   Future<void> _loadPartnerConnection() async {
@@ -157,9 +142,9 @@ class _DashboardState extends State<Dashboard> {
       final String? user2Id = data['user2Id']?.toString();
 
       final Map<String, dynamic>? user1 =
-      (data['user1'] as Map?)?.cast<String, dynamic>();
+          (data['user1'] as Map?)?.cast<String, dynamic>();
       final Map<String, dynamic>? user2 =
-      (data['user2'] as Map?)?.cast<String, dynamic>();
+          (data['user2'] as Map?)?.cast<String, dynamic>();
 
       if (user1 == null || user2 == null) {
         setState(() {
@@ -192,22 +177,22 @@ class _DashboardState extends State<Dashboard> {
       }
 
       final Map<String, dynamic>? partnerProfile =
-      (partnerUser['profile'] as Map?)?.cast<String, dynamic>();
+          (partnerUser['profile'] as Map?)?.cast<String, dynamic>();
 
       // 4️⃣ Resolve partner name
       final String? rawName = partnerProfile?['name']?.toString().trim();
       final String? rawUsername = partnerUser['username']?.toString().trim();
 
       final String name =
-      (rawName != null && rawName.isNotEmpty)
-          ? rawName
-          : (rawUsername ?? 'Partner');
+          (rawName != null && rawName.isNotEmpty)
+              ? rawName
+              : (rawUsername ?? 'Partner');
 
       // 5️⃣ Resolve partner role (husband / wife / etc.)
       final String? role =
-      (partnerProfile?['role']?.toString().trim().isNotEmpty ?? false)
-          ? partnerProfile!['role'].toString()
-          : null;
+          (partnerProfile?['role']?.toString().trim().isNotEmpty ?? false)
+              ? partnerProfile!['role'].toString()
+              : null;
 
       setState(() {
         _isPartnerConnected = true;
@@ -226,8 +211,6 @@ class _DashboardState extends State<Dashboard> {
       });
     }
   }
-
-
 
   Future<void> _openInvitePartner() async {
     await Navigator.push(
@@ -249,9 +232,9 @@ class _DashboardState extends State<Dashboard> {
   Future<void> _onConfirmDisconnect() async {
     final token = await _getAuthToken();
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please login again')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please login again')));
       return;
     }
 
@@ -280,9 +263,7 @@ class _DashboardState extends State<Dashboard> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            res['error']?.toString() ?? 'Failed to disconnect',
-          ),
+          content: Text(res['error']?.toString() ?? 'Failed to disconnect'),
         ),
       );
     }
@@ -330,14 +311,13 @@ class _DashboardState extends State<Dashboard> {
       unselectedItemColor: Colors.grey[600],
       showUnselectedLabels: true,
       type: BottomNavigationBarType.fixed,
-      items: items
-          .map(
-            (e) => BottomNavigationBarItem(
-          icon: Icon(e.icon),
-          label: e.label,
-        ),
-      )
-          .toList(),
+      items:
+          items
+              .map(
+                (e) =>
+                    BottomNavigationBarItem(icon: Icon(e.icon), label: e.label),
+              )
+              .toList(),
     );
   }
 }
@@ -348,6 +328,7 @@ class _NavItem {
 
   const _NavItem({required this.icon, required this.label});
 }
+
 class _DashboardContent extends StatelessWidget {
   const _DashboardContent({
     Key? key,
@@ -520,10 +501,7 @@ class _DashboardContent extends StatelessWidget {
                 children: [
                   const Text(
                     'Emotional Connection Score',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -540,10 +518,7 @@ class _DashboardContent extends StatelessWidget {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: Color(0xFFf6ecff),
-                        child: Icon(
-                          Icons.favorite,
-                          color: Color(0xFFaf57db),
-                        ),
+                        child: Icon(Icons.favorite, color: Color(0xFFaf57db)),
                       ),
                     ],
                   ),
@@ -609,9 +584,10 @@ class _DashboardContent extends StatelessWidget {
                 return Wrap(
                   spacing: spacing,
                   runSpacing: spacing,
-                  children: metricItems
-                      .map((w) => SizedBox(width: itemWidth, child: w))
-                      .toList(),
+                  children:
+                      metricItems
+                          .map((w) => SizedBox(width: itemWidth, child: w))
+                          .toList(),
                 );
               },
             ),
@@ -800,7 +776,7 @@ class _DashboardContent extends StatelessWidget {
                     iconColorEnd: Color(0xFFF7C7C9),
                     icon: Icons.favorite_border,
                     title:
-                    "It's been 2 days since you said something kind — try now?",
+                        "It's been 2 days since you said something kind — try now?",
                     timeAgo: '2 hours ago',
                     primaryLabel: 'Send appreciation',
                     bgColor: Color(0xFFFFF3F4),
@@ -811,7 +787,7 @@ class _DashboardContent extends StatelessWidget {
                     iconColorEnd: Color(0xFFDDEEFF),
                     icon: Icons.chat_bubble_outline,
                     title:
-                    "Your partner had a tough workday — maybe send a message.",
+                        "Your partner had a tough workday — maybe send a message.",
                     timeAgo: '4 hours ago',
                     primaryLabel: 'Check in',
                     bgColor: Color(0xFFF3F8FF),
@@ -822,7 +798,7 @@ class _DashboardContent extends StatelessWidget {
                     iconColorEnd: Color(0xFFFBF0D6),
                     icon: Icons.access_time,
                     title:
-                    "You both haven't interacted much today — small gesture time.",
+                        "You both haven't interacted much today — small gesture time.",
                     timeAgo: '6 hours ago',
                     primaryLabel: 'Start conversation',
                     bgColor: Color(0xFFFFFBF2),
@@ -843,18 +819,17 @@ class _DashboardContent extends StatelessWidget {
                   _UnspokenCard(
                     icon: Icons.favorite_border,
                     title:
-                    "Today, your partner would appreciate being noticed for his efforts.",
-                    actionLabel:
-                    "Send a text acknowledging their hard work",
+                        "Today, your partner would appreciate being noticed for his efforts.",
+                    actionLabel: "Send a text acknowledging their hard work",
                     bgColor: Color(0xFFFFF3F4),
                   ),
                   SizedBox(height: 12),
                   _UnspokenCard(
                     icon: Icons.favorite,
                     title:
-                    "You may be feeling overwhelmed with responsibilities lately.",
+                        "You may be feeling overwhelmed with responsibilities lately.",
                     actionLabel:
-                    "Ask your partner for support with daily tasks",
+                        "Ask your partner for support with daily tasks",
                     bgColor: Color(0xFFF6F0FF),
                   ),
                 ],
@@ -867,47 +842,66 @@ class _DashboardContent extends StatelessWidget {
             const _SectionHeader(
               title: 'Communication & AI',
               subtitle:
-              'Tools to enhance conversations with your partner and Cuplix AI',
+                  'Tools to enhance conversations with your partner and Cuplix AI',
             ),
 
             const SizedBox(height: 12),
 
             _roundedCard(
               child: Column(
-                children: const [
+                children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(
+                    iconGradient: const LinearGradient(
                       colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)],
                     ),
                     icon: Icons.chat_bubble_outline,
                     title: 'AI Chat',
                     subtitle:
-                    'Get advice and guidance through text conversations',
-                    onTap: null,
+                        'Get advice and guidance through text conversations',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiChatScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFFAF57DB), Color(0xFFE46791)],
                     ),
                     icon: Icons.mic,
                     title: 'Voice AI',
-                    subtitle:
-                    'Talk to your AI relationship therapist anytime',
-                    onTap: null,
+                    subtitle: 'Talk to your AI relationship therapist anytime',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiAgentScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFF6EC1FF), Color(0xFF5AA6FF)],
                     ),
                     icon: Icons.forum_outlined,
                     title: 'Partner Chat',
-                    subtitle:
-                    'Secure, AI-enhanced messaging with your partner',
-                    onTap: null,
+                    subtitle: 'Secure, AI-enhanced messaging with your partner',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CoupleJournalScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFF8E6DF5), Color(0xFFEA7FA6)],
@@ -915,10 +909,17 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.auto_awesome,
                     title: 'AI Agent',
                     subtitle:
-                    'Command your AI assistant to manage app features',
-                    onTap: null,
+                        'Command your AI assistant to manage app features',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiAgentScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFFF5B24A), Color(0xFFF3983E)],
@@ -926,8 +927,15 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.smart_toy,
                     title: 'Mirror Mode',
                     subtitle:
-                    "Practice conversations with your partner's AI twin",
-                    onTap: null,
+                        "Practice conversations with your partner's AI twin",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MirrorModeScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -939,7 +947,7 @@ class _DashboardContent extends StatelessWidget {
             const _SectionHeader(
               title: 'Memories & Care',
               subtitle:
-              'Capture special moments and nurture emotional closeness',
+                  'Capture special moments and nurture emotional closeness',
             ),
 
             const SizedBox(height: 12),
@@ -947,14 +955,21 @@ class _DashboardContent extends StatelessWidget {
             _roundedCard(
               child: Column(
                 children: [
-                  const _FeatureTile(
+                  _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)],
                     ),
                     icon: Icons.book_outlined,
                     title: 'Journal',
                     subtitle: 'Capture memories and track emotional trends',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const JournalScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 10),
                   _FeatureTile(
@@ -964,7 +979,7 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.person_add_alt_1,
                     title: 'Invite Partner',
                     subtitle:
-                    'Send a personal invite so your partner can join you',
+                        'Send a personal invite so your partner can join you',
                     onTap: onInvitePartner,
                   ),
                   const SizedBox(height: 10),
@@ -974,20 +989,25 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.favorite,
                     title: 'Intimacy Builder',
-                    subtitle:
-                    'Custom suggestions to maintain emotional spark',
+                    subtitle: 'Custom suggestions to maintain emotional spark',
                     onTap: null,
                   ),
                   const SizedBox(height: 10),
-                  const _FeatureTile(
+                  _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFF8E6DF5), Color(0xFFE46791)],
                     ),
                     icon: Icons.health_and_safety,
                     title: 'Therapist Mode',
-                    subtitle:
-                    'Conflict analysis with improvement suggestions',
-                    onTap: null,
+                    subtitle: 'Conflict analysis with improvement suggestions',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AiTherapistScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1005,16 +1025,23 @@ class _DashboardContent extends StatelessWidget {
 
             _roundedCard(
               child: Column(
-                children: const [
+                children:   [
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFFF5B24A), Color(0xFFF3983E)],
                     ),
                     icon: Icons.calendar_today,
                     title: 'Couple Calendar',
-                    subtitle:
-                    'AI-managed scheduling for relationship events',
-                    onTap: null,
+                    subtitle: 'AI-managed scheduling for relationship events',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const CoupleCalendarScreen(),
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
@@ -1023,9 +1050,16 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.track_changes,
                     title: 'Shared Goals',
-                    subtitle:
-                    'Track goals and dream experiences in one place',
-                    onTap: null,
+                    subtitle: 'Track goals and dream experiences in one place',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const RelationshipGoalsScreen(role: '', name: 'name'),
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
@@ -1034,8 +1068,7 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.show_chart,
                     title: 'Compatibility',
-                    subtitle:
-                    'Deep emotional interaction visualization',
+                    subtitle: 'Deep emotional interaction visualization',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -1045,8 +1078,7 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.music_note,
                     title: 'Mood Music',
-                    subtitle:
-                    'Personalized playlists for emotional regulation',
+                    subtitle: 'Personalized playlists for emotional regulation',
                     onTap: null,
                   ),
                 ],
@@ -1059,7 +1091,7 @@ class _DashboardContent extends StatelessWidget {
             const _SectionHeader(
               title: 'Health & Wellness',
               subtitle:
-              'Track your well-being and its impact on your relationship',
+                  'Track your well-being and its impact on your relationship',
             ),
 
             const SizedBox(height: 12),
@@ -1073,8 +1105,7 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.bloodtype,
                     title: 'Cycle Tracker',
-                    subtitle:
-                    'Hormonal mood insights with gentle reminders',
+                    subtitle: 'Hormonal mood insights with gentle reminders',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -1085,7 +1116,7 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.nightlight_round,
                     title: 'Sleep & Stress',
                     subtitle:
-                    'Biological harmony tracking with wellness insights',
+                        'Biological harmony tracking with wellness insights',
                     onTap: null,
                   ),
                   SizedBox(height: 10),
@@ -1095,8 +1126,7 @@ class _DashboardContent extends StatelessWidget {
                     ),
                     icon: Icons.monitor_heart,
                     title: 'Sensor Tracking',
-                    subtitle:
-                    'Real-time emotional and conflict detection',
+                    subtitle: 'Real-time emotional and conflict detection',
                     onTap: null,
                   ),
                 ],
@@ -1115,36 +1145,60 @@ class _DashboardContent extends StatelessWidget {
 
             _roundedCard(
               child: Column(
-                children: const [
+                children: [
                   _FeatureTile(
-                    iconGradient: LinearGradient(
+                    iconGradient: const LinearGradient(
                       colors: [Color(0xFFF47B9A), Color(0xFFEB5E7C)],
                     ),
                     icon: Icons.card_giftcard,
                     title: 'Gift Marketplace',
                     subtitle: 'AI-recommended gifts and experiences',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                          MaterialPageRoute(
+                          builder:
+                              (context) => const GiftMarketplaceScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(
+                    iconGradient: const LinearGradient(
                       colors: [Color(0xFF4FD77E), Color(0xFF2DB06A)],
                     ),
                     icon: Icons.emoji_events,
                     title: 'Rewards',
                     subtitle:
-                    'Earn love points and badges for positive actions',
-                    onTap: null,
+                        'Earn love points and badges for positive actions',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                          MaterialPageRoute(
+                          builder:
+                              (context) => const RewardsScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _FeatureTile(
-                    iconGradient: LinearGradient(
+                    iconGradient: const LinearGradient(
                       colors: [Color(0xFFF3C451), Color(0xFFEFAE39)],
                     ),
                     icon: Icons.workspace_premium,
                     title: 'Subscription',
                     subtitle: 'Manage Cuplix+ perks and billing details',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                          MaterialPageRoute(
+                          builder:
+                              (context) => const UpgradeToCuplixScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1162,7 +1216,7 @@ class _DashboardContent extends StatelessWidget {
 
             _roundedCard(
               child: Column(
-                children: const [
+                children: [
                   _FeatureTile(
                     iconGradient: LinearGradient(
                       colors: [Color(0xFF7AA1FF), Color(0xFF6C8CFF)],
@@ -1170,7 +1224,15 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.person_outline,
                     title: 'Profile',
                     subtitle: 'View your connection stats and badges',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const ProfileScreen(),
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
@@ -1180,7 +1242,15 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.edit_outlined,
                     title: 'Edit Profile',
                     subtitle: 'Update bios, avatars, and personal info',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const OnboardingRoleSelection(),
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 10),
                   _FeatureTile(
@@ -1190,7 +1260,15 @@ class _DashboardContent extends StatelessWidget {
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy Center',
                     subtitle: 'Review data controls and permissions',
-                    onTap: null,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const PrivacyDashboardScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1213,12 +1291,9 @@ class _DashboardContent extends StatelessWidget {
                   const SizedBox(height: 12),
                   const Text(
                     "Your partner has been showing extra effort this week. "
-                        "Consider expressing appreciation – a simple acknowledgment can "
-                        "strengthen your bond by 15%.",
-                    style: TextStyle(
-                      color: Color(0xFF7C748A),
-                      height: 1.4,
-                    ),
+                    "Consider expressing appreciation – a simple acknowledgment can "
+                    "strengthen your bond by 15%.",
+                    style: TextStyle(color: Color(0xFF7C748A), height: 1.4),
                   ),
                   const SizedBox(height: 14),
                   Align(
@@ -1339,7 +1414,9 @@ class _DashboardContent extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF20C05C),
                         borderRadius: BorderRadius.circular(20),
@@ -1660,15 +1737,12 @@ class _BlueprintInsights extends StatelessWidget {
         children: [
           Text(
             'Blueprint Insights',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 8),
           Text(
             'Your strongest area is Shared Values (92%). Focus on improving Conflict '
-                'Resolution through active listening techniques.',
+            'Resolution through active listening techniques.',
             style: TextStyle(color: Colors.grey, height: 1.4),
           ),
         ],
@@ -1721,8 +1795,7 @@ class _NotificationCard extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                Center(child: Icon(icon, color: Colors.white, size: 18)),
+                child: Center(child: Icon(icon, color: Colors.white, size: 18)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1839,8 +1912,7 @@ class _UnspokenCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             child: Text(
               actionLabel,
@@ -1850,10 +1922,7 @@ class _UnspokenCard extends StatelessWidget {
           const SizedBox(height: 8),
           TextButton(
             onPressed: () {},
-            child: const Text(
-              'Done',
-              style: TextStyle(color: Colors.black87),
-            ),
+            child: const Text('Done', style: TextStyle(color: Colors.black87)),
           ),
         ],
       ),
@@ -1946,10 +2015,7 @@ class _UnspokenHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           child: const Center(
-            child: Icon(
-              Icons.auto_mode_outlined,
-              color: Colors.white,
-            ),
+            child: Icon(Icons.auto_mode_outlined, color: Colors.white),
           ),
         ),
         const SizedBox(width: 12),
@@ -1959,10 +2025,7 @@ class _UnspokenHeader extends StatelessWidget {
             children: [
               Text(
                 'Unspoken Needs Decoder',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
               Text(
@@ -1981,10 +2044,7 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionHeader({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1996,10 +2056,7 @@ class _SectionHeader extends StatelessWidget {
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
-        Text(
-          subtitle,
-          style: const TextStyle(color: Color(0xFF9A8EA0)),
-        ),
+        Text(subtitle, style: const TextStyle(color: Color(0xFF9A8EA0))),
       ],
     );
   }
@@ -2023,10 +2080,7 @@ class _InsightHeader extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
           ),
-          child: const Icon(
-            Icons.auto_awesome,
-            color: Colors.white,
-          ),
+          child: const Icon(Icons.auto_awesome, color: Colors.white),
         ),
         const SizedBox(width: 12),
         const Text(
