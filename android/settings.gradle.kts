@@ -20,7 +20,7 @@ plugins {
     // AGP 8.9.1 to satisfy androidx.browser:1.9.0 and core-ktx:1.17.0
     id("com.android.application") version "8.9.1" apply false
     id("com.android.library") version "8.9.1" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    id("org.jetbrains.kotlin.android") version "2.0.21" apply false
     // if you want to use the Flutter loader instead:
     // id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"

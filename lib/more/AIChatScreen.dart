@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:cuplix/utils/SharedPreferences.dart';
+import 'package:flutter/services.dart'; // for Clipboard
 
 // Cuplix AI backend base URL
 const String _aiBaseUrl = 'https://ai.cuplix.in';
@@ -264,8 +265,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 60,
-        duration: const Duration(milliseconds: 250),
+        _scrollController.position.maxScrollExtent + 80,
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOut,
       );
     });
@@ -286,10 +287,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ---------- Top gradient header ----------
+            // ---------- Top compact header (reduced height for more chat space) ----------
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Color(0xFF8C62FF), Color(0xFFFF5FD3)],
@@ -297,152 +298,219 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(22),
+                  bottom: Radius.circular(18),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const HeaderSection(),
-                  const SizedBox(height: 14),
-                  const DescriptionBox(),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.auto_awesome,
+                          color: Color(0xFF8C62FF), size: 22),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'AI Companion',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Your private space to talk • Here for you',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // compact emotion chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.emoji_emotions_outlined,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.psychology_alt_outlined,
-                              size: 18,
-                              color: Colors.white,
+                            const Text(
+                              'Emotion',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Emotion Analysis',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  emotionAnalysisOn
-                                      ? 'On • More empathetic'
-                                      : 'Off • Straight advice',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 10),
-                            Switch(
-                              value: emotionAnalysisOn,
-                              onChanged: (v) =>
-                                  setState(() => emotionAnalysisOn = v),
-                              activeColor: Colors.white,
-                              activeTrackColor:
-                              Colors.white.withOpacity(0.4),
-                              inactiveThumbColor: Colors.white,
-                              inactiveTrackColor:
-                              Colors.white.withOpacity(0.2),
-                              materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
+                            Text(
+                              emotionAnalysisOn ? 'Empathetic' : 'Direct',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      if (_isListening)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.mic,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Listening...',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(width: 8),
+                        Switch(
+                          value: emotionAnalysisOn,
+                          onChanged: (v) => setState(() => emotionAnalysisOn = v),
+                          activeColor: Colors.white,
+                          activeTrackColor: Colors.white.withOpacity(0.3),
+                          inactiveThumbColor: Colors.white,
+                          inactiveTrackColor: Colors.white.withOpacity(0.2),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                    ],
-                  ),
-                  if (_lastError.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Speech error: $_lastError',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFFFE4E9),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 8),
 
-            // ---------- Chat list in card ----------
+            // ---------- Chat list in card (cleaner spacing) ----------
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Container(
                   margin: const EdgeInsets.only(top: 6, bottom: 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _messages[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: ChatBubble(message: msg),
-                        );
-                      },
+                        horizontal: 10, vertical: 10),
+                    child: Column(
+                      children: [
+                        // subtle message counter / helper
+                        Row(
+                          children: [
+                            Text(
+                              'Conversation',
+                              style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            if (_messages.isNotEmpty)
+                              Text(
+                                '${_messages.length} messages',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Expanded(
+                          child: _messages.isEmpty
+                              ? Center(
+                            child: Text(
+                              'No messages yet. Say hi 👋',
+                              style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 14),
+                            ),
+                          )
+                              : Scrollbar(
+                            controller: _scrollController,
+                            thumbVisibility: true,
+                            radius: const Radius.circular(6),
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: _messages.length,
+                              itemBuilder: (context, index) {
+                                final msg = _messages[index];
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 6),
+                                  child: ChatBubble(
+                                    message: msg,
+                                    onLongPressCopy: () {
+                                      Clipboard.setData(
+                                          ClipboardData(text: msg.content));
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Copied'),
+                                          duration:
+                                          Duration(milliseconds: 800),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+
+                        // typing indicator (UI only)
+                        if (_sending) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const SizedBox(width: 6),
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Assistant is typing...',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
@@ -454,7 +522,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               top: false,
               child: Padding(
                 padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -466,7 +534,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       onMicPressed: _onMicPressed,
                       onAttachFile: _onAttachFile,
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     if (!keyboardVisible)
                       QuickSuggestions(onTapSuggestion: _onSuggestionTap),
                   ],
@@ -480,7 +548,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 }
 
-// ================= UI widgets (unchanged) =================
+// ================= UI widgets (tweaked for friendlier UX) =================
 
 class HeaderSection extends StatelessWidget {
   const HeaderSection({super.key});
@@ -562,8 +630,9 @@ class DescriptionBox extends StatelessWidget {
 
 class ChatBubble extends StatelessWidget {
   final _Message message;
+  final VoidCallback? onLongPressCopy;
 
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({super.key, required this.message, this.onLongPressCopy});
 
   bool get isUser => message.role == 'user';
 
@@ -579,46 +648,49 @@ class ChatBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Flexible(
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF5FD3), Color(0xFFB86BFF)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18).copyWith(
-                    bottomRight: const Radius.circular(4),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      message.content,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
+              child: GestureDetector(
+                onLongPress: onLongPressCopy,
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF5FD3), Color(0xFFB86BFF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeText,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 10,
-                      ),
+                    borderRadius: BorderRadius.circular(18).copyWith(
+                      bottomRight: const Radius.circular(4),
                     ),
-                  ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SelectableText(
+                        message.content,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        timeText,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             CircleAvatar(
-              radius: 11,
+              radius: 13,
               backgroundColor: const Color(0xFFE8E1FF),
               child: const Text(
                 'N',
@@ -639,7 +711,7 @@ class ChatBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             CircleAvatar(
-              radius: 11,
+              radius: 13,
               backgroundColor: const Color(0xFFEDE9FF),
               child: const Icon(
                 Icons.auto_awesome,
@@ -647,37 +719,40 @@ class ChatBubble extends StatelessWidget {
                 color: Color(0xFF7C4DFF),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Flexible(
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F1F8),
-                  borderRadius: BorderRadius.circular(18).copyWith(
-                    bottomLeft: const Radius.circular(4),
+              child: GestureDetector(
+                onLongPress: onLongPressCopy,
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F1F8),
+                    borderRadius: BorderRadius.circular(18).copyWith(
+                      bottomLeft: const Radius.circular(4),
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      message.content,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: Colors.black87,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SelectableText(
+                        message.content,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeText,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 10,
+                      const SizedBox(height: 6),
+                      Text(
+                        timeText,
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -716,15 +791,15 @@ class InputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -763,7 +838,7 @@ class InputArea extends StatelessWidget {
               color: isListening ? Colors.redAccent : Colors.grey[800],
             ),
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 6),
           Container(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -779,8 +854,8 @@ class InputArea extends StatelessWidget {
                 height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor:
-                  AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.white),
                 ),
               )
                   : const Icon(Icons.send, color: Colors.white, size: 18),
@@ -815,21 +890,19 @@ class QuickSuggestions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              SuggestionChip(
-                  'I need help with communication', onTapSuggestion),
-              SuggestionChip(
-                  'Feeling disconnected lately', onTapSuggestion),
-              SuggestionChip(
-                  'Want to plan a date night', onTapSuggestion),
-              SuggestionChip(
-                'Need advice on conflict resolution',
-                onTapSuggestion,
-              ),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                SuggestionChip('I need help with communication', onTapSuggestion),
+                const SizedBox(width: 6),
+                SuggestionChip('Feeling disconnected lately', onTapSuggestion),
+                const SizedBox(width: 6),
+                SuggestionChip('Want to plan a date night', onTapSuggestion),
+                const SizedBox(width: 6),
+                SuggestionChip('Need advice on conflict resolution', onTapSuggestion),
+              ],
+            ),
           ),
         ],
       ),
@@ -854,7 +927,7 @@ class SuggestionChip extends StatelessWidget {
           label,
           style: const TextStyle(fontSize: 12, color: Color(0xFF4A3C7A)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
     );
   }

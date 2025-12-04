@@ -9,6 +9,7 @@ import 'package:cuplix/more/RewardsScreen.dart';
 import 'package:flutter/material.dart';
 
 import '../more/AIChatScreen.dart';
+import '../more/AiVoiceCompanionScreen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -70,7 +71,7 @@ class MoreScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AiAgentScreen(),
+                          builder: (context) => const AiVoiceCompanionScreen(),
                         ),
                       );
                     },
